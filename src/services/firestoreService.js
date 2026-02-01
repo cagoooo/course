@@ -297,5 +297,34 @@ export const firestoreService = {
 
     async deleteSnapshot(snapshotId, semesterId = SEMESTER_ID) {
         await deleteDoc(doc(db, `semesters/${semesterId}/snapshots`, snapshotId));
+    },
+
+    // Get Schedule for a specific Classroom
+    async getClassroomSchedule(classroomId, semesterId = SEMESTER_ID) {
+        const snapshot = await getDocs(collection(db, `semesters/${semesterId}/schedules`));
+        const allSchedules = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+
+        // We also need teachers to check their tied specialized classrooms
+        const teachersSnapshot = await getDocs(collection(db, `semesters/${semesterId}/teachers`));
+        const teachers = teachersSnapshot.docs.map(t => ({ id: t.id, ...t.data() }));
+
+        const roomGrid = Array(35).fill(null);
+
+        allSchedules.forEach(schedule => {
+            if (!schedule.periods) return;
+            schedule.periods.forEach((period, index) => {
+                // Find if the teacher of this period is assigned to this classroom
+                const teacher = teachers.find(t => t.id === period.teacherId);
+                if (teacher && teacher.classroomId === classroomId) {
+                    roomGrid[index] = {
+                        classId: schedule.classId,
+                        courseId: period.courseId,
+                        teacherId: period.teacherId
+                    };
+                }
+            });
+        });
+
+        return roomGrid;
     }
 };

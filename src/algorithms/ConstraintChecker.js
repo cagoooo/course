@@ -102,80 +102,70 @@ export class ConstraintChecker {
                 const days = slots.map(s => getDayIndex(s));
                 const uniqueDays = new Set(days);
 
-                // Identify Course Name to check for 1+2 (Social/Science)
+                // Identify Course Name to check for 1+2 (Social/Science) or 2 (Art)
                 const course = this.coursesMap?.get(courseId);
                 const courseName = course ? (typeof course.name === 'string' ? course.name : (course.name?.name || '')) : '';
                 const isBlockSubject = courseName && (courseName.includes('社') || courseName.includes('自'));
+                const isArtSubject = courseName && (courseName.includes('美') || courseName.includes('藝'));
 
                 if (isBlockSubject && slots.length === 3) {
                     // Check for 1+2 pattern: Two consecutive in same day, one in different day
-                    // Patterns: [DayA slot i, DayA slot i+1, DayB slot j]
-
-                    // Sort slots to check adjacency
                     const sortedSlots = [...slots].sort((a, b) => a - b);
                     let foundConsecutive = false;
 
                     for (let i = 0; i < sortedSlots.length - 1; i++) {
                         const s1 = sortedSlots[i];
                         const s2 = sortedSlots[i + 1];
-                        // Same day and consecutive (i, i+1)
-                        if (getDayIndex(s1) === getDayIndex(s2) && (s2 - s1 === 1)) {
-                            // Ensure not crossing lunch (indices 3 and 4 are consecutive but cross lunch in UI)
-                            // Slot 3 is Period 4, Slot 4 is Period 5.
-                            // In our 0-34 indexing, slots per day are 0,1,2,3,4,5,6
-                            // Lunch happens between 3 and 4.
-                            if (s1 % 7 !== 3) {
-                                foundConsecutive = true;
-                                break;
-                            }
+                        // Same day and consecutive (i, i+1) and not crossing lunch
+                        if (getDayIndex(s1) === getDayIndex(s2) && (s2 - s1 === 1) && (s1 % 7 !== 3)) {
+                            foundConsecutive = true;
+                            break;
                         }
                     }
 
                     if (!foundConsecutive) {
-                        softPenalties += 8; // Increased penalty for not having 1+2 block
+                        softPenalties += 8;
                     } else if (uniqueDays.size !== 2) {
-                        softPenalties += 4; // Penalty for having all 3 on same day or spread across 3 days
+                        softPenalties += 4;
                     } else {
-                        // Check if the 2 days are consecutive (bad for student memory/fatigue)
                         const daysArr = Array.from(uniqueDays).sort((a, b) => a - b);
                         if (daysArr[1] - daysArr[0] === 1) {
-                            softPenalties += 2; // Slight penalty for consecutive days
+                            softPenalties += 2;
                         }
                     }
-                } else if (course && (course.name.includes('國') || course.name.includes('語'))) {
-                    // Chinese (國語) constraint: 1-2 periods per day, spread across 5 days
-                    // Count periods per day
+                } else if (isArtSubject && slots.length === 2) {
+                    // Art: Prefer afternoon and consecutive
+                    const sortedSlots = [...slots].sort((a, b) => a - b);
+                    const s1 = sortedSlots[0];
+                    const s2 = sortedSlots[1];
+
+                    if (s1 % 7 < 4 || s2 % 7 < 4) {
+                        softPenalties += 50; // Afternoon preference (strong)
+                    }
+
+                    if (getDayIndex(s1) !== getDayIndex(s2) || (s2 - s1 !== 1) || (s1 % 7 === 3)) {
+                        softPenalties += 30; // Consecutive preference
+                    }
+                } else if (courseName.includes('國') || courseName.includes('語')) {
                     const dayCount = {};
                     days.forEach(d => {
                         dayCount[d] = (dayCount[d] || 0) + 1;
                     });
-
-                    // Check each day has 1-2 periods (not 0 and not >2)
                     for (const [day, count] of Object.entries(dayCount)) {
-                        if (count > 2) {
-                            softPenalties += (count - 2) * 10; // Increased penalty for more than 2 per day (was 3)
-                        }
+                        if (count > 2) softPenalties += (count - 2) * 10;
                     }
-
-                    // Prefer spreading across more days (at least 4 out of 5)
                     if (slots.length >= 5 && uniqueDays.size < 4) {
-                        softPenalties += (4 - uniqueDays.size) * 5; // Increased (was 2)
+                        softPenalties += (4 - uniqueDays.size) * 5;
                     }
-                } else if (course && course.name.includes('數')) {
-                    // Math (數學) constraint: Maximum 1 period per day
+                } else if (courseName.includes('數')) {
                     const dayCount = {};
                     days.forEach(d => {
                         dayCount[d] = (dayCount[d] || 0) + 1;
                     });
-
-                    // Check no day has more than 1 period
                     for (const [day, count] of Object.entries(dayCount)) {
-                        if (count > 1) {
-                            softPenalties += (count - 1) * 15; // Increased penalty for math on same day (was 5)
-                        }
+                        if (count > 1) softPenalties += (count - 1) * 15;
                     }
                 } else {
-                    // Regular Distribution: Ideal is days are unique
                     if (uniqueDays.size < slots.length) {
                         softPenalties += (slots.length - uniqueDays.size);
                     }

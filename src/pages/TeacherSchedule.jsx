@@ -61,9 +61,20 @@ function TeacherSchedule() {
 
     // Filtered Teachers list
     const filteredTeachers = useMemo(() => {
+        // Mapping for Chinese numerals to Arabic digits for grade searching
+        const chineseToArabic = { '一': '1', '二': '2', '三': '3', '四': '4', '五': '5', '六': '6' };
+        let processedQuery = searchQuery.toLowerCase();
+
+        // If user types "一年", "二年" etc., try to bridge the gap
+        Object.keys(chineseToArabic).forEach(key => {
+            if (processedQuery.includes(key)) {
+                processedQuery = processedQuery.replace(key, chineseToArabic[key]);
+            }
+        });
+
         return teachers.filter(t => {
-            const matchesSearch = t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                (t.homeroomClass && t.homeroomClass.includes(searchQuery));
+            const label = `${t.name} ${t.homeroomClass || ''}`.toLowerCase();
+            const matchesSearch = label.includes(processedQuery) || label.includes(searchQuery.toLowerCase());
 
             const matchesType =
                 filterType === 'all' ||

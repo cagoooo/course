@@ -150,7 +150,7 @@ const ConflictResolver = ({
                                         const conflictedGene = bestSolution?.find(
                                             g => g.classId === classId && g.periodIndex === conflict.slotIndex
                                         );
-                                        const aiSuggestions = isSelected ? SuggestionService.findSwapSuggestions(
+                                        const aiSuggestions = (isSelected && courses) ? SuggestionService.findSwapSuggestions(
                                             classId,
                                             conflict.slotIndex,
                                             conflict.type,
@@ -166,9 +166,10 @@ const ConflictResolver = ({
                                                     };
                                                 })
                                             })),
-                                            [], // Requirements (not fully needed for simple swap check here)
+                                            [], // Requirements
                                             classes,
-                                            teachers
+                                            teachers,
+                                            courses
                                         ) : [];
 
                                         const availableSlots = isSelected ? findAvailableSlots(conflictedGene) : [];
@@ -208,10 +209,12 @@ const ConflictResolver = ({
                                                                             className="suggestion-btn ai"
                                                                             onClick={(e) => {
                                                                                 e.stopPropagation();
-                                                                                onResolveConflict?.(classId, s.from, s.to);
+                                                                                onResolveConflict?.(classId, s.from, s.to, s.path);
                                                                             }}
                                                                         >
-                                                                            <span className="type-icon">{s.type === 'MOVE' ? '➡️' : '🔁'}</span>
+                                                                            <span className="type-icon">
+                                                                                {s.type === 'MOVE' ? '➡️' : s.type === 'CHAIN' ? '🔗' : '🔁'}
+                                                                            </span>
                                                                             {s.description}
                                                                         </button>
                                                                     ))}

@@ -920,30 +920,48 @@ function AutoSchedule() {
     }, [bestSolution, teachers]);
 
     // Handle conflict resolution
-    const handleResolveConflict = (classId, fromIndex, toIndex) => {
+    const handleResolveConflict = (classId, fromIndex, toIndex, path = null) => {
         if (!bestSolution) return;
 
         const otherGenes = bestSolution.filter(g => g.classId !== classId);
         const myGenes = bestSolution.filter(g => g.classId === classId);
-
-        // Find the gene to move
-        const sourceGeneIndex = myGenes.findIndex(g => g.periodIndex === fromIndex);
-        if (sourceGeneIndex === -1) return;
-
-        // Check if target slot is occupied
-        const targetGeneIndex = myGenes.findIndex(g => g.periodIndex === toIndex);
-
         const newMyGenes = [...myGenes];
 
-        if (targetGeneIndex !== -1) {
-            // Swap
-            const sourceGene = { ...newMyGenes[sourceGeneIndex], periodIndex: toIndex };
-            const targetGene = { ...newMyGenes[targetGeneIndex], periodIndex: fromIndex };
-            newMyGenes[sourceGeneIndex] = sourceGene;
-            newMyGenes[targetGeneIndex] = targetGene;
+        if (path && Array.isArray(path)) {
+            // Support multi-step chain swap (AI generated path)
+            path.forEach(op => {
+                const idx = newMyGenes.findIndex(g => g.periodIndex === op.from);
+                if (idx !== -1) {
+                    if (op.type === 'MOVE') {
+                        newMyGenes[idx] = { ...newMyGenes[idx], periodIndex: op.to };
+                    } else if (op.type === 'SWAP') {
+                        const targetIdx = newMyGenes.findIndex(g => g.periodIndex === op.to);
+                        if (targetIdx !== -1) {
+                            const sourceGene = { ...newMyGenes[idx], periodIndex: op.to };
+                            const targetGene = { ...newMyGenes[targetIdx], periodIndex: op.from };
+                            newMyGenes[idx] = sourceGene;
+                            newMyGenes[targetIdx] = targetGene;
+                        }
+                    }
+                }
+            });
         } else {
-            // Move to empty slot
-            newMyGenes[sourceGeneIndex] = { ...newMyGenes[sourceGeneIndex], periodIndex: toIndex };
+            // Original simple move/swap logic
+            const sourceGeneIndex = newMyGenes.findIndex(g => g.periodIndex === fromIndex);
+            if (sourceGeneIndex === -1) return;
+
+            const targetGeneIndex = newMyGenes.findIndex(g => g.periodIndex === toIndex);
+
+            if (targetGeneIndex !== -1) {
+                // Swap
+                const sourceGene = { ...newMyGenes[sourceGeneIndex], periodIndex: toIndex };
+                const targetGene = { ...newMyGenes[targetGeneIndex], periodIndex: fromIndex };
+                newMyGenes[sourceGeneIndex] = sourceGene;
+                newMyGenes[targetGeneIndex] = targetGene;
+            } else {
+                // Move to empty slot
+                newMyGenes[sourceGeneIndex] = { ...newMyGenes[sourceGeneIndex], periodIndex: toIndex };
+            }
         }
 
         setBestSolution([...otherGenes, ...newMyGenes]);

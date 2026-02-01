@@ -129,24 +129,27 @@ const ScheduleGrid = ({
     };
 
     return (
-        <div className="schedule-container">
-            <div className="schedule-header">
-                <div className="header-cell time-col">節次</div>
-                {DAYS.map(day => (
-                    <div key={day} className="header-cell day-col">{day}</div>
-                ))}
-            </div>
-
-            {PERIODS.map((periodName, uiRowIndex) => (
-                <div key={uiRowIndex} className={`schedule-row ${getDataPeriodIndex(uiRowIndex) === -1 ? 'row-break' : ''}`}>
-                    <div className="time-cell">{periodName}</div>
-                    {DAYS.map((_, dayIdx) => (
-                        <div key={`${dayIdx}-${uiRowIndex}`} className="data-cell">
-                            {renderCell(dayIdx, uiRowIndex)}
-                        </div>
+        <div className="schedule-outer-wrapper">
+            <div className="schedule-container">
+                <div className="schedule-header">
+                    <div className="header-cell time-col">節次</div>
+                    {DAYS.map(day => (
+                        <div key={day} className="header-cell day-col">{day}</div>
                     ))}
                 </div>
-            ))}
+
+                {PERIODS.map((periodName, uiRowIndex) => (
+                    <div key={uiRowIndex} className={`schedule-row ${getDataPeriodIndex(uiRowIndex) === -1 ? 'row-break' : ''}`}>
+                        <div className="time-cell">{periodName}</div>
+                        {DAYS.map((_, dayIdx) => (
+                            <div key={`${dayIdx}-${uiRowIndex}`} className="data-cell">
+                                {renderCell(dayIdx, uiRowIndex)}
+                            </div>
+                        ))}
+                    </div>
+                ))}
+            </div>
+            <div className="mobile-scroll-hint">↔ 左右滑動查看完整課表</div>
         </div>
     );
 };
