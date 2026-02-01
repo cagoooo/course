@@ -17,6 +17,96 @@ export const firestoreService = {
         return docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } : null;
     },
 
+    async createSemester(id, name, copyFromId = null) {
+        const semesterRef = doc(db, 'semesters', id);
+        const snapshot = await getDoc(semesterRef);
+        if (snapshot.exists()) {
+            throw new Error('該學期代碼已存在');
+        }
+
+        // Create the semester document
+        await setDoc(semesterRef, { name, createdAt: new Date().toISOString() });
+
+        // Copy data if requested
+        if (copyFromId) {
+            try {
+                // Copy Courses
+                const courses = await this.getCourses(copyFromId);
+                if (courses.length > 0) await this.batchAddCourses(courses, id);
+
+                // Copy Classrooms
+                const classrooms = await this.getClassrooms(copyFromId);
+                if (classrooms.length > 0) await this.batchAddClassrooms(classrooms, id);
+
+                // Copy Teachers (Must preserve classroomId links? No, IDs change)
+                // Wait, if we generate NEW IDs for classrooms, the teacher's classroomId will be broken.
+                // We need to map old IDs to new IDs if we want to preserve relationships.
+                // For MVP, we might just copy names and let user re-bind, OR:
+                // We can use the SAME IDs? No, IDs should be unique globally or scoped?
+                // Subcollections are scoped to the parent doc, so IDs CAN be same if we want.
+                // But batchAdd uses random IDs.
+
+                // Better strategy for "Copy":
+                // 1. Copy Classrooms first, keep a map of OldID -> NewID (or reuse ID if batchAdd supports it?)
+                // Actually my batchAdd generates new IDs. 
+                // Let's keep it simple for now: Copy data but clear relations (set classroomId to null)?
+                // OR rewrite batchAdd to allow specifying IDs?
+
+                // Let's try to reuse IDs for simplicity within the new semester scope?
+                // Firestore allows custom IDs.
+                // If we reuse IDs, then relations are preserved automatically!
+
+                // Let's implement custom "copyCollection" logic here instead of using batchAdd helpers.
+
+                const batchSize = 400; // Limit
+                const copyCollection = async (collName) => {
+                    const sourceRef = collection(db, `semesters/${copyFromId}/${collName}`);
+                    const sourceDocs = await getDocs(sourceRef);
+                    if (sourceDocs.empty) return;
+
+                    const batch = writeBatch(db);
+                    let count = 0;
+
+                    for (const docSnap of sourceDocs.docs) {
+                        const data = docSnap.data();
+                        const newRef = doc(db, `semesters/${id}/${collName}`, docSnap.id); // Reuse ID
+                        batch.set(newRef, data);
+                        count++;
+                    }
+                    await batch.commit();
+                    console.log(`Copied ${count} ${collName} from ${copyFromId} to ${id}`);
+                };
+
+                await copyCollection('courses');
+                await copyCollection('classrooms');
+                await copyCollection('teachers');
+                // We probably don't want to copy 'classes' or 'schedules' as struct might change?
+                // Usually classes structure (Grade 1-6) is same, just students change.
+                // Let's copy classes too, but clear homerooms?
+                // User requirement: "Copy Data" usually implies setup data (Teachers, Rooms, Courses).
+                // Classes are usually recreated or promoted.
+                // But to be helpful, let's copy Classes (structure) but clear `homeroomTeacherId`?
+
+                const classes = await this.getClasses(copyFromId);
+                if (classes.length > 0) {
+                    const batch = writeBatch(db);
+                    classes.forEach(c => {
+                        const newRef = doc(db, `semesters/${id}/classes`, c.id);
+                        // Keep name/grade/classNum, but maybe clear homeroom?
+                        // User might want to keep homeroom if little change. Let's keep it.
+                        batch.set(newRef, c);
+                    });
+                    await batch.commit();
+                }
+
+            } catch (e) {
+                console.error("Copy failed partial:", e);
+                // We don't rollback semester creation, just alert user via error
+                throw new Error("學期建立成功，但資料複製發生錯誤: " + e.message);
+            }
+        }
+    },
+
     // Get Teachers for a semester
     async getTeachers(semesterId = SEMESTER_ID) {
         const snapshot = await getDocs(collection(db, `semesters/${semesterId}/teachers`));

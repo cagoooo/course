@@ -1,9 +1,13 @@
-# SMES AI 智慧排課系統 (v2.0.0)
+# SMES AI 智慧排課系統 (v2.1.1)
 
-![Roadmap 2.0](https://img.shields.io/badge/Roadmap-2.0.0-blueviolet?style=for-the-badge&logo=react)
+![Roadmap 2.1](https://img.shields.io/badge/Roadmap-2.1.0-blueviolet?style=for-the-badge&logo=react)
 ![Firebase](https://img.shields.io/badge/Firebase-Auth%20%7C%20Firestore-orange?style=for-the-badge&logo=firebase)
 
 本系統是針對「石門國民小學」開發的智慧化自動排課與管理平台，旨在取代傳統的桌機版 STC 系統，提供雲端同步、AI 衝突解決與現代化的使用者體驗。
+
+## ✨ 最新更新 (v2.1.1)
+*   **介面優化**：優化「師資配課」面板的按鈕排版，解決新增按鈕在小螢幕或特定寬度下被擠壓至右側的問題，提升操作可見度。
+*   **功能修復**：修復教師、科目、教室的「批次新增」功能，解決資料格式不相容導致的錯誤，現在可流暢地進行大量資料匯入。
 
 ## ✨ 核心特色 (Roadmap 2.0)
 

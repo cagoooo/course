@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { firestoreService } from '../services/firestoreService';
+import { useSemester } from '../contexts/SemesterContext';
 import ScheduleGrid from '../components/ScheduleGrid';
 import SchedulerWorker from '../workers/scheduler.worker.js?worker';
 import DataManagementPanel from '../components/DataManagementPanel';
@@ -13,6 +14,7 @@ import './AutoSchedule_ProgressBar.css';
 
 
 function AutoSchedule() {
+    const { currentSemesterId } = useSemester();
     const [activeTab, setActiveTab] = useState('settings'); // 'settings' | 'workload' | 'scheduler'
     const [status, setStatus] = useState('idle'); // idle, loading, running, stopped
     const [progress, setProgress] = useState({ generation: 0, score: 0 });
@@ -53,7 +55,7 @@ function AutoSchedule() {
     // Auto-save requirements with debounce
     useEffect(() => {
         // Skip initial load
-        if (isInitialLoad.current) {
+        if (isInitialLoad.current || !currentSemesterId) {
             return;
         }
 
@@ -65,7 +67,7 @@ function AutoSchedule() {
         // Debounce save (wait 1 second after last change)
         saveTimeoutRef.current = setTimeout(async () => {
             try {
-                await firestoreService.saveRequirements(requirements);
+                await firestoreService.saveRequirements(requirements, currentSemesterId);
                 console.log('Requirements auto-saved');
             } catch (err) {
                 console.error('Failed to save requirements:', err);
@@ -77,22 +79,23 @@ function AutoSchedule() {
                 clearTimeout(saveTimeoutRef.current);
             }
         };
-    }, [requirements]);
+    }, [requirements, currentSemesterId]);
 
     // Load Data
     useEffect(() => {
+        if (!currentSemesterId) return;
+
         async function loadData() {
             setStatus('loading');
             const [cl, cr, te, clr, semSchedules, savedReqs] = await Promise.all([
-                firestoreService.getClasses(),
-                firestoreService.getCourses(),
-                firestoreService.getTeachers(),
-                firestoreService.getClassrooms(),
-                firestoreService.getAllSchedules(),
-                firestoreService.getRequirements()
+                firestoreService.getClasses(currentSemesterId),
+                firestoreService.getCourses(currentSemesterId),
+                firestoreService.getTeachers(currentSemesterId),
+                firestoreService.getClassrooms(currentSemesterId),
+                firestoreService.getAllSchedules(currentSemesterId),
+                firestoreService.getRequirements(currentSemesterId)
             ]);
 
-            setClasses(cl);
             setClasses(cl);
 
             // Sanitize Courses (Strict check for object wrapping)
@@ -160,7 +163,30 @@ function AutoSchedule() {
             isInitialLoad.current = false;
         }
         loadData();
-    }, []);
+    }, [currentSemesterId]);
+
+
+
+
+
+    // Courses
+
+
+
+
+
+
+
+
+    // Classrooms
+
+
+
+
+
+
+    // Cleanup Helpers
+
 
     // Worker Control
     const handleStart = () => {
@@ -241,7 +267,7 @@ function AutoSchedule() {
         });
 
         try {
-            await firestoreService.saveScheduleBatch(schedulesToSave);
+            await firestoreService.saveScheduleBatch(schedulesToSave, currentSemesterId);
             alert("課表儲存成功！");
             setStatus('idle');
         } catch (err) {
@@ -255,7 +281,7 @@ function AutoSchedule() {
     const handleAddTeacher = async (name) => {
         try {
             const newTeacher = { name, id: '', classroomId: null };
-            const saved = await firestoreService.addTeacher(newTeacher);
+            const saved = await firestoreService.addTeacher(newTeacher, currentSemesterId);
             setTeachers([...teachers, saved]);
         } catch (e) {
             console.error(e);
@@ -268,7 +294,7 @@ function AutoSchedule() {
             const changes = typeof updates === 'string' ? { name: updates } : updates;
             const updated = { id, ...changes };
 
-            await firestoreService.updateTeacher(updated);
+            await firestoreService.updateTeacher(updated, currentSemesterId);
 
             setTeachers(teachers.map(t => t.id === id ? { ...t, ...changes } : t));
         } catch (e) {
@@ -280,7 +306,7 @@ function AutoSchedule() {
     const handleDeleteTeacher = async (id) => {
         if (!confirm("確定要刪除這位老師嗎？相關的排課設定可能會失效。")) return;
         try {
-            await firestoreService.deleteTeacher(id);
+            await firestoreService.deleteTeacher(id, currentSemesterId);
             setTeachers(teachers.filter(t => t.id !== id));
         } catch (e) {
             console.error(e);
@@ -291,7 +317,7 @@ function AutoSchedule() {
     // --- Classroom Management ---
     const handleAddClassroom = async (name) => {
         try {
-            const saved = await firestoreService.addClassroom({ name });
+            const saved = await firestoreService.addClassroom({ name }, currentSemesterId);
             setClassrooms([...classrooms, saved]);
         } catch (e) {
             console.error(e);
@@ -301,7 +327,7 @@ function AutoSchedule() {
 
     const handleUpdateClassroom = async (id, name) => {
         try {
-            await firestoreService.updateClassroom({ id, name });
+            await firestoreService.updateClassroom({ id, name }, currentSemesterId);
             setClassrooms(classrooms.map(c => c.id === id ? { ...c, name } : c));
         } catch (e) {
             console.error(e);
@@ -312,7 +338,7 @@ function AutoSchedule() {
     const handleDeleteClassroom = async (id) => {
         if (!confirm("確定要刪除這個教室嗎？已綁定的教師將失去教室關聯。")) return;
         try {
-            await firestoreService.deleteClassroom(id);
+            await firestoreService.deleteClassroom(id, currentSemesterId);
             setClassrooms(classrooms.filter(c => c.id !== id));
             // Also need to clear classroomId for teachers who used it
             setTeachers(teachers.map(t => t.classroomId === id ? { ...t, classroomId: null } : t));
@@ -323,33 +349,48 @@ function AutoSchedule() {
     };
 
     // --- Batch Import Handlers ---
-    const handleBatchAddTeachers = async (teachersData) => {
+    const handleBatchAddTeachers = async (data) => {
         try {
-            const results = await firestoreService.batchAddTeachers(teachersData);
+            // Support input as array of strings (names) or objects
+            const teachersData = (Array.isArray(data) && typeof data[0] === 'string')
+                ? data.map(name => ({ name }))
+                : data;
+            const results = await firestoreService.batchAddTeachers(teachersData, currentSemesterId);
             setTeachers([...teachers, ...results]);
+            alert(`成功新增 ${results.length} 位教師`);
         } catch (e) {
             console.error(e);
-            throw e;
+            alert("批次新增失敗: " + e.message);
         }
     };
 
-    const handleBatchAddCourses = async (coursesData) => {
+    const handleBatchAddCourses = async (data) => {
         try {
-            const results = await firestoreService.batchAddCourses(coursesData);
+            // Support input as array of strings (names) or objects
+            const coursesData = (Array.isArray(data) && typeof data[0] === 'string')
+                ? data.map(name => ({ name }))
+                : data;
+            const results = await firestoreService.batchAddCourses(coursesData, currentSemesterId);
             setCourses([...courses, ...results]);
+            alert(`成功新增 ${results.length} 個科目`);
         } catch (e) {
             console.error(e);
-            throw e;
+            alert("批次新增失敗: " + e.message);
         }
     };
 
-    const handleBatchAddClassrooms = async (classroomsData) => {
+    const handleBatchAddClassrooms = async (data) => {
         try {
-            const results = await firestoreService.batchAddClassrooms(classroomsData);
+            // Support input as array of strings (names) or objects
+            const classroomsData = (Array.isArray(data) && typeof data[0] === 'string')
+                ? data.map(name => ({ name }))
+                : data;
+            const results = await firestoreService.batchAddClassrooms(classroomsData, currentSemesterId);
             setClassrooms([...classrooms, ...results]);
+            alert(`成功新增 ${results.length} 間教室`);
         } catch (e) {
             console.error(e);
-            throw e;
+            alert("批次新增失敗: " + e.message);
         }
     };
 
@@ -358,7 +399,7 @@ function AutoSchedule() {
     const handleAddCourse = async (name) => {
         try {
             const newCourse = { name, id: '' };
-            const saved = await firestoreService.addCourse(newCourse);
+            const saved = await firestoreService.addCourse(newCourse, currentSemesterId);
             setCourses([...courses, saved]);
         } catch (e) {
             console.error(e);
@@ -379,7 +420,7 @@ function AutoSchedule() {
 
             // In a real database, we'd use a batch. For local testing/simplicity:
             for (const c of sameNameCourses) {
-                await firestoreService.updateCourse({ id: c.id, name });
+                await firestoreService.updateCourse({ id: c.id, name }, currentSemesterId);
             }
 
             setCourses(courses.map(c => c.name === oldName ? { ...c, name } : c));
@@ -399,7 +440,7 @@ function AutoSchedule() {
         try {
             const sameNameCourses = courses.filter(c => c.name === targetName);
             for (const c of sameNameCourses) {
-                await firestoreService.deleteCourse(c.id);
+                await firestoreService.deleteCourse(c.id, currentSemesterId);
             }
             setCourses(courses.filter(c => c.name !== targetName));
         } catch (e) {
@@ -444,14 +485,14 @@ function AutoSchedule() {
 
             // 2. Delete duplicate course records from Firestore
             for (const dup of duplicates) {
-                await firestoreService.deleteCourse(dup.id);
+                await firestoreService.deleteCourse(dup.id, currentSemesterId);
             }
 
             // 3. Update requirements if any changed
             if (updatedCount > 0) {
                 setRequirements(newRequirements);
                 // Also trigger auto-save or manual save if needed
-                await firestoreService.saveRequirements(newRequirements);
+                await firestoreService.saveRequirements(newRequirements, currentSemesterId);
                 console.log(`已重新對應 ${updatedCount} 筆配課需求`);
             }
 
@@ -484,19 +525,19 @@ function AutoSchedule() {
                         classNum: i,
                         // gridIndex is legacy, maybe not needed or calculate max
                     };
-                    await firestoreService.addClass(newClass);
+                    await firestoreService.addClass(newClass, currentSemesterId);
                     // Also create empty schedule doc if needed
                 }
             } else {
                 // Remove classes (from end)
                 for (let i = currentCount; i > newCount; i--) {
                     const classId = `G${grade}-C${i}`;
-                    await firestoreService.deleteClass(classId);
+                    await firestoreService.deleteClass(classId, currentSemesterId);
                     // Should also delete schedule doc?
                 }
             }
             // Refresh classes
-            const updatedClasses = await firestoreService.getClasses();
+            const updatedClasses = await firestoreService.getClasses(currentSemesterId);
             setClasses(updatedClasses);
         } catch (e) {
             console.error(e);
@@ -506,7 +547,7 @@ function AutoSchedule() {
 
     const handleAssignHomeroom = async (classId, teacherId) => {
         try {
-            await firestoreService.updateClassHomeroom(classId, teacherId);
+            await firestoreService.updateClassHomeroom(classId, teacherId, currentSemesterId);
             setClasses(classes.map(c => c.id === classId ? { ...c, homeroomTeacherId: teacherId } : c));
         } catch (e) {
             console.error(e);
@@ -563,7 +604,7 @@ function AutoSchedule() {
 
             if (fixedCount > 0) {
                 setRequirements(newRequirements);
-                await firestoreService.saveRequirements(newRequirements);
+                await firestoreService.saveRequirements(newRequirements, currentSemesterId);
                 alert(`修復完成！共更新了 ${fixedCount} 筆配課資料。`);
             } else {
                 alert('沒有發現需要修復的資料。如果是自定義科目（如 13:生科），請到「配課管理」手動重新選擇科目即可。');
@@ -627,7 +668,7 @@ function AutoSchedule() {
     const handleClearAllConstraints = async () => {
         if (!confirm("確定要清除「所有」老師的排課時段限制嗎？此動作無法復原。")) return;
         try {
-            await firestoreService.clearAllTeacherConstraints(teachers);
+            await firestoreService.clearAllTeacherConstraints(teachers, currentSemesterId);
             setTeachers(teachers.map(t => ({ ...t, unavailableSlots: [] })));
             alert("已清除所有排課限制。");
         } catch (e) {
@@ -639,7 +680,7 @@ function AutoSchedule() {
     const handleClearAllHomerooms = async () => {
         if (!confirm("確定要清除「所有」班級的導師設定嗎？此動作無法復原。")) return;
         try {
-            await firestoreService.clearAllClassHomerooms(classes);
+            await firestoreService.clearAllClassHomerooms(classes, currentSemesterId);
             setClasses(classes.map(c => ({ ...c, homeroomTeacherId: null })));
             alert("已清除所有導師設定。");
         } catch (e) {

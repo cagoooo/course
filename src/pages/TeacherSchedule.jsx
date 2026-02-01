@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { firestoreService } from '../services/firestoreService';
+import { useSemester } from '../contexts/SemesterContext';
 import ScheduleGrid from '../components/ScheduleGrid';
 import './TeacherSchedule.css';
 
 function TeacherSchedule() {
+    const { currentSemesterId, loading: semesterLoading } = useSemester();
     const [teachers, setTeachers] = useState([]);
     const [courses, setCourses] = useState([]);
     const [classes, setClasses] = useState([]);
@@ -16,12 +18,14 @@ function TeacherSchedule() {
 
     // Initial Load
     useEffect(() => {
+        if (!currentSemesterId) return;
+
         async function init() {
             setLoading(true);
             const [tList, cList, clList] = await Promise.all([
-                firestoreService.getTeachers(),
-                firestoreService.getCourses(),
-                firestoreService.getClasses()
+                firestoreService.getTeachers(currentSemesterId),
+                firestoreService.getCourses(currentSemesterId),
+                firestoreService.getClasses(currentSemesterId)
             ]);
 
             // Map teachers with homeroom info
@@ -54,10 +58,13 @@ function TeacherSchedule() {
                 name: (typeof c.name === 'object' && c.name !== null) ? (c.name.name || Object.values(c.name)[0]) : c.name
             })));
             setClasses(clList);
+            // Reset selection on semester change
+            setSelectedTeacherId('');
+            setScheduleData(null);
             setLoading(false);
         }
         init();
-    }, []);
+    }, [currentSemesterId]);
 
     // Filtered Teachers list
     const filteredTeachers = useMemo(() => {
@@ -98,7 +105,7 @@ function TeacherSchedule() {
         }
 
         async function fetchSchedule() {
-            const grid = await firestoreService.getTeacherSchedule(selectedTeacherId);
+            const grid = await firestoreService.getTeacherSchedule(selectedTeacherId, currentSemesterId);
             const mappedGrid = grid.map(cell => {
                 if (!cell) return null;
                 const cls = classes.find(c => c.id === cell.classId);
@@ -111,7 +118,7 @@ function TeacherSchedule() {
             setScheduleData(mappedGrid);
         }
         fetchSchedule();
-    }, [selectedTeacherId, classes, courses]);
+    }, [selectedTeacherId, classes, courses, currentSemesterId]);
 
     if (loading && teachers.length === 0) {
         return (

@@ -152,10 +152,12 @@ export class ConstraintChecker {
                         dayCount[d] = (dayCount[d] || 0) + 1;
                     });
                     for (const [day, count] of Object.entries(dayCount)) {
-                        if (count > 2) softPenalties += (count - 2) * 10;
+                        // Strong penalty for > 2 periods/day
+                        if (count > 2) softPenalties += (count - 2) * 2000;
                     }
-                    if (slots.length >= 5 && uniqueDays.size < 4) {
-                        softPenalties += (4 - uniqueDays.size) * 5;
+                    // Strong preference for daily Chinese class (if load >= 5)
+                    if (slots.length >= 5 && uniqueDays.size < 5) {
+                        softPenalties += (5 - uniqueDays.size) * 200;
                     }
                 } else if (courseName.includes('數')) {
                     const dayCount = {};
@@ -163,7 +165,8 @@ export class ConstraintChecker {
                         dayCount[d] = (dayCount[d] || 0) + 1;
                     });
                     for (const [day, count] of Object.entries(dayCount)) {
-                        if (count > 1) softPenalties += (count - 1) * 15;
+                        // Strong penalty for > 1 period/day
+                        if (count > 1) softPenalties += (count - 1) * 2000;
                     }
                 } else {
                     if (uniqueDays.size < slots.length) {

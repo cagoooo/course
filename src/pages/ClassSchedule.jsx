@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { firestoreService } from '../services/firestoreService';
+import { useSemester } from '../contexts/SemesterContext';
 import ScheduleGrid from '../components/ScheduleGrid';
 import './ClassSchedule.css';
 
 function ClassSchedule() {
+    const { currentSemesterId, loading: semesterLoading } = useSemester();
     const [classes, setClasses] = useState([]);
     const [courses, setCourses] = useState([]);
     const [teachers, setTeachers] = useState([]);
@@ -18,6 +20,8 @@ function ClassSchedule() {
 
     // Initial Load
     useEffect(() => {
+        if (!currentSemesterId) return;
+
         const normalizeName = (item) => {
             if (typeof item.name === 'object' && item.name !== null) {
                 return item.name.name || Object.values(item.name)[0] || item.id;
@@ -28,10 +32,10 @@ function ClassSchedule() {
         async function init() {
             setLoading(true);
             const [clList, cList, tList, crList] = await Promise.all([
-                firestoreService.getClasses(),
-                firestoreService.getCourses(),
-                firestoreService.getTeachers(),
-                firestoreService.getClassrooms()
+                firestoreService.getClasses(currentSemesterId),
+                firestoreService.getCourses(currentSemesterId),
+                firestoreService.getTeachers(currentSemesterId),
+                firestoreService.getClassrooms(currentSemesterId)
             ]);
 
             setClasses(clList.map(c => ({ ...c, name: normalizeName(c) })));
@@ -39,10 +43,14 @@ function ClassSchedule() {
 
             setCourses(cList.map(c => ({ ...c, name: normalizeName(c) })));
             setTeachers(tList.map(t => ({ ...t, name: normalizeName(t) })));
+
+            // Reset selection on semester change
+            setSelectedId('');
+            setScheduleData(null);
             setLoading(false);
         }
         init();
-    }, []);
+    }, [currentSemesterId]);
 
     // Filtered options based on Search and Grade
     const filteredOptions = useMemo(() => {
@@ -85,10 +93,10 @@ function ClassSchedule() {
         async function fetchSchedule() {
             let data;
             if (viewMode === 'class') {
-                const res = await firestoreService.getClassSchedule(selectedId);
+                const res = await firestoreService.getClassSchedule(selectedId, currentSemesterId);
                 data = res?.periods || Array(35).fill(null);
             } else {
-                data = await firestoreService.getClassroomSchedule(selectedId);
+                data = await firestoreService.getClassroomSchedule(selectedId, currentSemesterId);
             }
 
             // Map IDs to Names for Display

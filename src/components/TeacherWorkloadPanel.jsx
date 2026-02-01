@@ -52,6 +52,26 @@ function TeacherWorkloadPanel({
         return '';
     };
 
+    // Helper to determine max periods based on course name
+    const getMaxPeriods = (courseId) => {
+        const course = courses.find(c => c.id === courseId);
+        if (!course) return 20; // Default max
+        const name = renderName(course.name);
+        if (name.includes('國語')) return 6;
+        if (name.includes('數學')) return 4;
+        return 20; // Default max for others
+    };
+
+    // Helper to get default periods based on course name
+    const getDefaultPeriods = (courseId) => {
+        const course = courses.find(c => c.id === courseId);
+        if (!course) return 1;
+        const name = renderName(course.name);
+        if (name.includes('國語')) return 6;
+        if (name.includes('數學')) return 4;
+        return 1;
+    };
+
     // --- Memos ---
     const homeroomTeacherIds = useMemo(() => {
         const ids = new Set();
@@ -66,18 +86,45 @@ function TeacherWorkloadPanel({
         const term = leftPanelSearchTerm.toLowerCase().trim();
 
         if (activeTab === 'teachers') {
-            let list = teachers;
-            if (!showAllTeachers) {
-                list = list.filter(t => !homeroomTeacherIds.has(t.id));
-            }
-            if (!term) return list;
+            let list = showAllTeachers
+                ? [...teachers]
+                : teachers.filter(t => !homeroomTeacherIds.has(t.id));
 
-            return list.filter(t => {
-                const name = renderName(t.name).toLowerCase();
-                // Also search by their homeroom class if any
-                const cls = classes.find(c => c.homeroomTeacherId === t.id);
-                const clsName = cls ? renderName(cls.name).toLowerCase() : '';
-                return name.includes(term) || clsName.includes(term);
+            // Filter by search term
+            if (term) {
+                list = list.filter(t => {
+                    const name = renderName(t.name).toLowerCase();
+                    const cls = classes.find(c => c.homeroomTeacherId === t.id);
+                    const clsName = cls ? renderName(cls.name).toLowerCase() : '';
+                    return name.includes(term) || clsName.includes(term);
+                });
+            }
+
+            // Sort: Homeroom (Grade ASC, Class ASC) -> Subject Teachers (Name ASC)
+            return list.sort((a, b) => {
+                const classA = classes.find(c => c.homeroomTeacherId === a.id);
+                const classB = classes.find(c => c.homeroomTeacherId === b.id);
+
+                if (classA && classB) {
+                    // Both are homeroom teachers
+                    const getGradeClass = (name) => {
+                        const match = name.match(/(\d+)年(\d+)班/);
+                        if (match) return { g: parseInt(match[1]), c: parseInt(match[2]) };
+                        // Fallback for non-standard names (e.g., "特教班")
+                        return { g: 99, c: 99 };
+                    };
+                    const infoA = getGradeClass(classA.name);
+                    const infoB = getGradeClass(classB.name);
+
+                    if (infoA.g !== infoB.g) return infoA.g - infoB.g;
+                    return infoA.c - infoB.c;
+                }
+
+                if (classA) return -1; // A is homeroom, comes first
+                if (classB) return 1;  // B is homeroom, comes first
+
+                // Neither are homeroom, sort by name
+                return (a.name || '').localeCompare(b.name || '', 'zh-TW');
             });
         }
 
@@ -113,6 +160,30 @@ function TeacherWorkloadPanel({
                     courseName: course ? renderName(course.name) : '未知科目',
                     periods: req.periodsNeeded
                 });
+
+                // Sort details: Chinese -> Math -> Grade/Class
+                workloads[req.teacherId].details.sort((a, b) => {
+                    const isChineseA = a.courseName.includes('國語');
+                    const isChineseB = b.courseName.includes('國語');
+                    if (isChineseA && !isChineseB) return -1;
+                    if (!isChineseA && isChineseB) return 1;
+
+                    const isMathA = a.courseName.includes('數學');
+                    const isMathB = b.courseName.includes('數學');
+                    if (isMathA && !isMathB) return -1;
+                    if (!isMathA && isMathB) return 1;
+
+                    // Then by Grade/Class logic
+                    const getGradeClass = (name) => {
+                        const match = name.match(/(\d+)年(\d+)班/);
+                        if (match) return { g: parseInt(match[1]), c: parseInt(match[2]) };
+                        return { g: 99, c: 99 };
+                    };
+                    const infoA = getGradeClass(a.className);
+                    const infoB = getGradeClass(b.className);
+                    if (infoA.g !== infoB.g) return infoA.g - infoB.g;
+                    return infoA.c - infoB.c;
+                });
             }
         });
         return workloads;
@@ -127,18 +198,43 @@ function TeacherWorkloadPanel({
         }
     }, [activeTab, showAllTeachers, leftPanelSearchTerm]);
 
-    // --- Actions ---
-    const handleAddAction = () => {
-        if (activeTab === 'teachers') {
-            const name = prompt('請輸入新教師姓名:');
-            if (name) onAddTeacher(name);
-        } else if (activeTab === 'classrooms') {
-            const name = prompt('請輸入新教室名稱:');
-            if (name) onAddClassroom(name);
-        } else if (activeTab === 'courses') {
-            const name = prompt('請輸入新科目名稱:');
-            if (name) onAddCourse(name);
+    // --- Add / Batch Add Logic ---
+    const [showAddModal, setShowAddModal] = useState(false);
+    const [addMode, setAddMode] = useState('single'); // single | batch
+    const [newItemName, setNewItemName] = useState('');
+    const [batchInput, setBatchInput] = useState('');
+
+    const openAddModal = () => {
+        setNewItemName('');
+        setBatchInput('');
+        setAddMode('single'); // default
+        setShowAddModal(true);
+    };
+
+    const handleConfirmAdd = () => {
+        if (addMode === 'single') {
+            if (!newItemName.trim()) return;
+            const name = newItemName.trim();
+            if (activeTab === 'teachers') onAddTeacher(name);
+            else if (activeTab === 'classrooms') onAddClassroom(name);
+            else if (activeTab === 'courses') onAddCourse(name);
+        } else {
+            if (!batchInput.trim()) return;
+            // Split by newline or comma
+            const names = batchInput.split(/[,\n]+/).map(k => k.trim()).filter(k => k);
+            if (names.length === 0) return;
+
+            if (confirm(`確定要批次新增 ${names.length} 筆資料嗎？`)) {
+                if (activeTab === 'teachers' && onBatchAddTeachers) onBatchAddTeachers(names);
+                else if (activeTab === 'classrooms' && onBatchAddClassrooms) onBatchAddClassrooms(names);
+                else if (activeTab === 'courses' && onBatchAddCourses) onBatchAddCourses(names);
+                else {
+                    // Fallback if batch prop missing
+                    alert("此類別暫不支援批次新增 (缺少 Handler)");
+                }
+            }
         }
+        setShowAddModal(false);
     };
 
     const handleEditItem = (item) => {
@@ -204,16 +300,18 @@ function TeacherWorkloadPanel({
     };
 
     const handleReqChange = (classId, courseId, field, value) => {
-        setRequirements(prev => prev.map(r =>
+        const newReqs = requirements.map(r =>
             (r.teacherId === selectedTeacherId && r.classId === classId && r.courseId === courseId)
                 ? { ...r, [field]: value } : r
-        ));
+        );
+        onUpdateRequirements(newReqs);
     };
 
     const handleRemoveAllocation = (classId, courseId) => {
-        setRequirements(prev => prev.filter(r =>
+        const newReqs = requirements.filter(r =>
             !(r.teacherId === selectedTeacherId && r.classId === classId && r.courseId === courseId)
-        ));
+        );
+        onUpdateRequirements(newReqs);
     };
 
     // Auto-select class if teacher is homeroom
@@ -223,6 +321,82 @@ function TeacherWorkloadPanel({
             if (cls) setNewAllocation(prev => ({ ...prev, classId: cls.id }));
         }
     }, [selectedTeacherId, classes]);
+
+    // One-click reset for Homeroom teachers' Chinese and Math
+    const handleResetHomeroomDefaults = () => {
+        if (!window.confirm('⚠️ 確定要執行「導師節數校正」嗎？\n\n這將會為所有導師：\n1. 自動補齊缺少的國語(6節)與數學(4節)\n2. 強制將現有國語設為 6 節、數學設為 4 節\n\n此操作無法復原，確定要繼續？')) return;
+
+        let changedCount = 0;
+        let addedCount = 0;
+
+        // 1. Identify Course IDs for Chinese and Math
+        const chineseCourse = courses.find(c => renderName(c.name).includes('國語'));
+        const mathCourse = courses.find(c => renderName(c.name).includes('數學'));
+
+        if (!chineseCourse && !mathCourse) {
+            alert('❌ 找不到「國語」或「數學」科目，無法執行校正。');
+            return;
+        }
+
+        // 2. Clone current requirements
+        let updatedReqs = [...requirements];
+
+        // 3. Helper to update or add requirement
+        const ensureRequirement = (teacherId, classId, courseId, targetPeriods) => {
+            if (!courseId) return;
+
+            const existingIndex = updatedReqs.findIndex(r =>
+                r.teacherId === teacherId &&
+                r.classId === classId &&
+                r.courseId === courseId
+            );
+
+            if (existingIndex !== -1) {
+                // Update existing if different
+                if (updatedReqs[existingIndex].periodsNeeded !== targetPeriods) {
+                    updatedReqs[existingIndex] = { ...updatedReqs[existingIndex], periodsNeeded: targetPeriods };
+                    changedCount++;
+                }
+            } else {
+                // Add new
+                updatedReqs.push({
+                    id: Date.now().toString() + Math.random().toString(36).substr(2, 5), // Unique ID
+                    teacherId,
+                    classId,
+                    courseId,
+                    periodsNeeded: targetPeriods
+                });
+                addedCount++;
+            }
+        };
+
+        // 4. Iterate through all classes to find homeroom teachers
+        classes.forEach(cls => {
+            if (cls.homeroomTeacherId && cls.id) {
+                // A. CLEANUP: Remove allocations for this teacher in OTHER classes
+                // Filter out any reqs where teacherId matches BUT classId is different
+                const initialCount = updatedReqs.length;
+                updatedReqs = updatedReqs.filter(r =>
+                    !(r.teacherId === cls.homeroomTeacherId && r.classId !== cls.id)
+                );
+
+                if (updatedReqs.length < initialCount) {
+                    changedCount += (initialCount - updatedReqs.length);
+                }
+
+                // B. ENSURE: Add/Update Mandarin & Math for their OWN class
+                ensureRequirement(cls.homeroomTeacherId, cls.id, chineseCourse?.id, 6);
+                ensureRequirement(cls.homeroomTeacherId, cls.id, mathCourse?.id, 4);
+            }
+        });
+
+        if (changedCount > 0 || addedCount > 0) {
+            onUpdateRequirements(updatedReqs);
+            alert(`✅ 校正完成！\n- 新增了 ${addedCount} 筆缺漏科目\n- 更新了 ${changedCount} 筆節數設定`);
+        } else {
+            alert('全面檢查完成：所有導師的國語/數學科目及節數皆已標準，無需變更。');
+        }
+    };
 
     return (
         <div className="workload-panel">
@@ -238,23 +412,41 @@ function TeacherWorkloadPanel({
                         </div>
 
                         {/* Search & Actions */}
-                        <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
-                            <div className="search-group" style={{ flex: 1 }}>
+                        {/* Search & Actions */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '10px' }}>
+                            <div className="search-group" style={{ width: '100%' }}>
                                 <input
                                     type="text"
                                     placeholder={`搜尋${activeTab === 'teachers' ? '教師' : activeTab === 'classrooms' ? '教室' : '科目'}...`}
                                     value={leftPanelSearchTerm}
                                     onChange={e => setLeftPanelSearchTerm(e.target.value)}
+                                    style={{ width: '100%' }}
                                 />
                             </div>
-                            <button className="btn btn-primary btn-small" onClick={handleAddAction}>+ 新增</button>
+                            <button
+                                className="btn btn-primary"
+                                onClick={openAddModal}
+                                style={{ width: '100%', justifyContent: 'center', fontWeight: 'bold' }}
+                            >
+                                + 新增 / 批次建立
+                            </button>
                         </div>
 
                         {activeTab === 'teachers' && (
-                            <label style={{ fontSize: '0.8rem', color: '#64748b', display: 'flex', gap: '6px', marginBottom: '8px' }}>
-                                <input type="checkbox" checked={showAllTeachers} onChange={e => setShowAllTeachers(e.target.checked)} />
-                                顯示導師 (預設隱藏)
-                            </label>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                <label style={{ fontSize: '0.8rem', color: '#64748b', display: 'flex', gap: '6px' }}>
+                                    <input type="checkbox" checked={showAllTeachers} onChange={e => setShowAllTeachers(e.target.checked)} />
+                                    顯示導師 (預設隱藏)
+                                </label>
+                                <button
+                                    className="btn-text-danger"
+                                    onClick={handleResetHomeroomDefaults}
+                                    style={{ fontSize: '0.75rem', padding: '2px 6px', color: '#ef4444', border: '1px solid #fee2e2', borderRadius: '4px', background: '#fef2f2' }}
+                                    title="一鍵將所有導師的國語設為6節、數學設為4節"
+                                >
+                                    ⚡ 校正節數
+                                </button>
+                            </div>
                         )}
 
                         {/* List Area */}
@@ -314,10 +506,9 @@ function TeacherWorkloadPanel({
                             </div>
                         )}
 
-                        {/* Footer Templates (Only show on specific tabs if needed, or keep generic) */}
+                        {/* Footer Templates */}
                         <div style={{ marginTop: 'auto', paddingTop: '10px', borderTop: '1px solid #e2e8f0', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                            <small style={{ color: '#94a3b8' }}>提示: 可從 CSV 匯入整批資料</small>
-                            {/* Future: Add import buttons here if requested */}
+                            <small style={{ color: '#94a3b8' }}>提示: 批次新增可用逗號或換行分隔</small>
                         </div>
                     </div>
                 </div>
@@ -357,9 +548,15 @@ function TeacherWorkloadPanel({
                                                 </td>
                                                 <td style={{ textAlign: 'center' }}>
                                                     <input
-                                                        type="number" min="1" max="20"
+                                                        type="number" min="1" max={getMaxPeriods(d.courseId)}
                                                         value={d.periods}
-                                                        onChange={e => handleReqChange(d.classId, d.courseId, 'periodsNeeded', parseInt(e.target.value) || 0)}
+                                                        onChange={e => {
+                                                            const val = parseInt(e.target.value) || 0;
+                                                            const max = getMaxPeriods(d.courseId);
+                                                            if (val <= max) {
+                                                                handleReqChange(d.classId, d.courseId, 'periodsNeeded', val);
+                                                            }
+                                                        }}
                                                     />
                                                 </td>
                                                 <td style={{ textAlign: 'right' }}>
@@ -384,7 +581,11 @@ function TeacherWorkloadPanel({
                                             <td>
                                                 <select
                                                     value={newAllocation.courseId}
-                                                    onChange={e => setNewAllocation({ ...newAllocation, courseId: e.target.value })}
+                                                    onChange={e => {
+                                                        const cId = e.target.value;
+                                                        const defPeriods = getDefaultPeriods(cId);
+                                                        setNewAllocation({ ...newAllocation, courseId: cId, periods: defPeriods });
+                                                    }}
                                                     className="small-select"
                                                     style={{ background: 'white' }}
                                                 >
@@ -395,8 +596,15 @@ function TeacherWorkloadPanel({
                                             <td style={{ textAlign: 'center' }}>
                                                 <input
                                                     type="number" min="1"
+                                                    max={newAllocation.courseId ? getMaxPeriods(newAllocation.courseId) : 20}
                                                     value={newAllocation.periods}
-                                                    onChange={e => setNewAllocation({ ...newAllocation, periods: parseInt(e.target.value) || 1 })}
+                                                    onChange={e => {
+                                                        const val = parseInt(e.target.value) || 1;
+                                                        const max = newAllocation.courseId ? getMaxPeriods(newAllocation.courseId) : 20;
+                                                        if (val <= max) {
+                                                            setNewAllocation({ ...newAllocation, periods: val });
+                                                        }
+                                                    }}
                                                     style={{ background: 'white' }}
                                                 />
                                             </td>
@@ -423,6 +631,57 @@ function TeacherWorkloadPanel({
                     )}
                 </div>
             </div>
+
+            {/* Add Modal */}
+            {showAddModal && (
+                <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
+                    <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px' }}>
+                        <h3>新增 {activeTab === 'teachers' ? '教師' : activeTab === 'classrooms' ? '教室' : '科目'}</h3>
+
+                        <div className="form-group">
+                            <label>模式</label>
+                            <div style={{ display: 'flex', gap: '10px' }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+                                    <input type="radio" checked={addMode === 'single'} onChange={() => setAddMode('single')} /> 單筆新增
+                                </label>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+                                    <input type="radio" checked={addMode === 'batch'} onChange={() => setAddMode('batch')} /> 批次新增
+                                </label>
+                            </div>
+                        </div>
+
+                        {addMode === 'single' ? (
+                            <div className="form-group">
+                                <label>名稱</label>
+                                <input
+                                    type="text"
+                                    value={newItemName}
+                                    onChange={e => setNewItemName(e.target.value)}
+                                    placeholder="請輸入名稱"
+                                    autoFocus
+                                />
+                            </div>
+                        ) : (
+                            <div className="form-group">
+                                <label>名稱列表 (用換行或逗號分隔)</label>
+                                <textarea
+                                    value={batchInput}
+                                    onChange={e => setBatchInput(e.target.value)}
+                                    placeholder={`例如：\n王小明\n李大華\n陳阿美`}
+                                    style={{ width: '100%', height: '120px', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}
+                                    autoFocus
+                                />
+                                <small style={{ color: '#64748b' }}>一次可貼上多筆資料</small>
+                            </div>
+                        )}
+
+                        <div className="modal-actions">
+                            <button className="btn-cancel" onClick={() => setShowAddModal(false)}>取消</button>
+                            <button className="btn-save" onClick={handleConfirmAdd}>確定新增</button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Modal for Teacher Edit */}
             {editingTeacherId && (

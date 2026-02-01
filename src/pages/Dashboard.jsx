@@ -1,35 +1,37 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { firestoreService } from '../services/firestoreService';
+import { useSemester } from '../contexts/SemesterContext';
 import './Dashboard.css';
 
 function Dashboard() {
-    const [semester, setSemester] = useState(null);
+    const { currentSemesterId, currentSemesterName, loading: semesterLoading } = useSemester();
     const [stats, setStats] = useState({ teachers: 0, classes: 0 });
 
     useEffect(() => {
+        if (!currentSemesterId) return;
+
         async function fetchInfo() {
             try {
-                const [sem, te, cl] = await Promise.all([
-                    firestoreService.getSemester(),
-                    firestoreService.getTeachers(),
-                    firestoreService.getClasses()
+                // Fetch stats for specific semester
+                const [te, cl] = await Promise.all([
+                    firestoreService.getTeachers(currentSemesterId),
+                    firestoreService.getClasses(currentSemesterId)
                 ]);
-                setSemester(sem);
                 setStats({ teachers: te.length, classes: cl.length });
             } catch (err) {
                 console.error("Failed to fetch dashboard data:", err);
             }
         }
         fetchInfo();
-    }, []);
+    }, [currentSemesterId]);
 
     return (
         <div className="dashboard">
             <header className="page-header">
                 <h1>👋 歡迎使用 SMES 課表查詢</h1>
                 <div className="subtitle">
-                    <span>📅 目前學期：{semester ? semester.name : '載入中...'}</span>
+                    <span>📅 目前學期：{semesterLoading ? '載入中...' : currentSemesterName}</span>
                     <span className="divider">|</span>
                     <span>👥 系統狀態：{stats.teachers} 位教師 / {stats.classes} 個班級</span>
                 </div>
