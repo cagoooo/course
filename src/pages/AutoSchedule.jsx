@@ -670,6 +670,12 @@ function AutoSchedule() {
 
         if (sourceGeneIndex === -1) return;
 
+        if (toIndex === -1) {
+            // Remove
+            setBestSolution([...otherGenes, ...myGenes.filter((_, i) => i !== sourceGeneIndex)]);
+            return;
+        }
+
         const newMyGenes = [...myGenes];
 
         if (targetGeneIndex !== -1) {
@@ -1438,10 +1444,14 @@ function AutoSchedule() {
                     currentRequirements={requirements}
                     currentSchedules={bestSolution.length > 0 ? classes.map(cls => {
                         const classGenes = bestSolution.filter(g => g.classId === cls.id);
-                        const periods = Array(35).fill({ courseId: null, teacherId: null });
+                        // Ensure each slot is a unique object reference and contains no undefined
+                        const periods = Array.from({ length: 35 }, () => ({ courseId: null, teacherId: null }));
                         classGenes.forEach(g => {
                             if (g.periodIndex >= 0 && g.periodIndex < 35) {
-                                periods[g.periodIndex] = { courseId: g.courseId, teacherId: g.teacherId };
+                                periods[g.periodIndex] = {
+                                    courseId: g.courseId || null,
+                                    teacherId: g.teacherId || null
+                                };
                             }
                         });
                         return { classId: cls.id, periods };

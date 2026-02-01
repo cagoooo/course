@@ -36,7 +36,8 @@ const SnapshotManager = ({ currentSchedules, currentRequirements, onRestore, onC
             await loadSnapshots();
             alert('快照儲存成功！');
         } catch (err) {
-            setError('儲存快照失敗');
+            console.error('Snapshot save error:', err);
+            setError(`儲存快照失敗: ${err.message || '未知錯誤'}`);
         } finally {
             setLoading(false);
         }

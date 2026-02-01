@@ -1,5 +1,4 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, NavLink } from 'react-router-dom';
 import Dashboard from './pages/Dashboard';
 import TeacherSchedule from './pages/TeacherSchedule';
 import ClassSchedule from './pages/ClassSchedule';
@@ -14,10 +13,10 @@ function App() {
                 <nav className="main-nav">
                     <div className="nav-logo">📅 SMES 課表系統</div>
                     <div className="nav-links">
-                        <Link to="/" className="nav-item">首頁</Link>
-                        <Link to="/teacher" className="nav-item">教師課表</Link>
-                        <Link to="/class" className="nav-item">班級課表</Link>
-                        <Link to="/auto" className="nav-item highlight">自動排課 🤖</Link>
+                        <NavLink to="/" className="nav-item">首頁</NavLink>
+                        <NavLink to="/teacher" className="nav-item">教師課表</NavLink>
+                        <NavLink to="/class" className="nav-item">班級課表</NavLink>
+                        <NavLink to="/auto" className="nav-item nav-highlight">自動排課 🤖</NavLink>
                     </div>
                 </nav>
 

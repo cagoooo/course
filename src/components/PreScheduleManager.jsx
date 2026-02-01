@@ -187,6 +187,19 @@ function PreScheduleManager({
         onUpdateRequirements(newReqs);
     };
 
+    const handleClearAllLocks = () => {
+        if (!confirm('⚠️ 嚴重警告：這將會清除「全校所有年級、班級與科目」的預排鎖定設定！\n\n此操作將使所有已設定的鎖定時段失效，且無法復原。\n\n確定要執行嗎？')) return;
+
+        const newReqs = requirements.map(req => {
+            if (req.fixedSlots && req.fixedSlots.length > 0) {
+                return { ...req, fixedSlots: [] };
+            }
+            return req;
+        });
+        onUpdateRequirements(newReqs);
+        alert('已成功清除所有鎖定設定，回復至原始預設狀態。');
+    };
+
     return (
         <div className="card pre-schedule-panel">
             <div className="pre-schedule-header">
@@ -258,9 +271,12 @@ function PreScheduleManager({
                         )}
                     </div>
 
-                    <div className="actions">
-                        <button className="btn btn-danger btn-small" onClick={handleClearSelection} disabled={!selectedCourseName}>
-                            🗑 清除目前範圍鎖定
+                    <div className="pre-schedule-actions">
+                        <button className="btn btn-outline btn-small" onClick={handleClearSelection} disabled={!selectedCourseName}>
+                            🗑 清除目前範圍
+                        </button>
+                        <button className="btn btn-danger btn-small" onClick={handleClearAllLocks}>
+                            ⚠️ 一鍵清除所有設定
                         </button>
                     </div>
                 </div>

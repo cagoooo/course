@@ -1,3 +1,4 @@
+import React, { useState, useMemo } from 'react';
 import './ConflictResolver.css';
 import { SuggestionService } from '../services/SuggestionService';
 

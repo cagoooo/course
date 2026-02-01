@@ -23,6 +23,9 @@ service cloud.firestore {
       match /requirements/{requirementId} {
         allow read, write: if true;
       }
+      match /snapshots/{snapshotId} {
+        allow read, write: if true;
+      }
     }
     
     // Default safe rule: deny everything else (fallback)

@@ -278,12 +278,17 @@ export const firestoreService = {
     // --- Snapshot Operations ---
     async createSnapshot(name, schedules, requirements, semesterId = SEMESTER_ID) {
         const snapshotRef = doc(collection(db, `semesters/${semesterId}/snapshots`));
+
+        // Deep sanitize to remove undefined values which Firestore doesn't support
+        const cleanSchedules = JSON.parse(JSON.stringify(schedules || []));
+        const cleanRequirements = JSON.parse(JSON.stringify(requirements || []));
+
         const snapshotData = {
             id: snapshotRef.id,
             name: name || `快照 ${new Date().toLocaleString()}`,
             createdAt: new Date().toISOString(),
-            schedules: schedules, // Array of class schedules
-            requirements: requirements // Current requirements baseline
+            schedules: cleanSchedules,
+            requirements: cleanRequirements
         };
         await setDoc(snapshotRef, snapshotData);
         return snapshotData;

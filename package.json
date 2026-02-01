@@ -1,6 +1,6 @@
 {
   "name": "course",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "經過分析，此資料夾存放了一套 Windows 桌面版的學校排課系統 (STC) 及其相關資料庫。",
   "main": "index.js",
   "scripts": {

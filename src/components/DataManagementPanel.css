@@ -42,33 +42,88 @@
     /* Increased gap */
 }
 
+/* Grade Colors & Variables */
+:root {
+    --grade-1-color: #f43f5e;
+    /* Rose */
+    --grade-2-color: #f59e0b;
+    /* Amber */
+    --grade-3-color: #10b981;
+    /* Emerald */
+    --grade-4-color: #0ea5e9;
+    /* Sky */
+    --grade-5-color: #6366f1;
+    /* Indigo */
+    --grade-6-color: #8b5cf6;
+    /* Violet */
+}
+
 .grade-card {
-    border: 1px solid #e0e0e0;
-    border-radius: 10px;
-    padding: 1.25rem;
-    background: #fafafa;
-    transition: all 0.2s ease;
+    border: 1px solid rgba(224, 224, 224, 0.5);
+    border-radius: 16px;
+    padding: 1.5rem;
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.grade-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 6px;
+    height: 100%;
+}
+
+.grade-card.grade-1::before {
+    background: var(--grade-1-color);
+}
+
+.grade-card.grade-2::before {
+    background: var(--grade-2-color);
+}
+
+.grade-card.grade-3::before {
+    background: var(--grade-3-color);
+}
+
+.grade-card.grade-4::before {
+    background: var(--grade-4-color);
+}
+
+.grade-card.grade-5::before {
+    background: var(--grade-5-color);
+}
+
+.grade-card.grade-6::before {
+    background: var(--grade-6-color);
 }
 
 .grade-card:hover {
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
+    transform: translateY(-4px);
+    border-color: rgba(0, 0, 0, 0.1);
     background: #fff;
-    border-color: #d0d0d0;
 }
 
 .grade-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 1rem;
-    padding-bottom: 0.5rem;
-    border-bottom: 1px dashed #ddd;
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid rgba(0, 0, 0, 0.05);
 }
 
 .grade-title {
-    font-size: 1.1rem;
-    font-weight: bold;
-    color: #444;
+    font-size: 1.2rem;
+    font-weight: 800;
+    color: #1e293b;
+    letter-spacing: -0.5px;
 }
 
 .grade-controls {
@@ -78,49 +133,121 @@
 }
 
 .input-class-count {
-    width: 60px;
-    padding: 4px 8px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
+    width: 55px;
+    padding: 6px 4px;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
     text-align: center;
+    font-weight: 700;
+    transition: all 0.2s;
+}
+
+.input-class-count:focus {
+    border-color: var(--grade-5-color);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
 }
 
 .class-list {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 0.875rem;
 }
 
 .class-item {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    /* Space out label and select */
-    gap: 0.75rem;
+    gap: 1rem;
+    padding: 0.5rem;
+    border-radius: 10px;
+    transition: background 0.2s;
+}
+
+.class-item:hover {
+    background: rgba(0, 0, 0, 0.02);
 }
 
 .class-label {
     font-size: 0.95rem;
-    color: #555;
+    font-weight: 600;
+    color: #475569;
     white-space: nowrap;
-    /* Prevent breaking */
-    min-width: 70px;
-    /* Fixed width for alignment */
+    min-width: 60px;
 }
 
 .select-teacher {
     flex: 1;
-    /* Take remaining space */
-    padding: 6px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
+    padding: 8px 12px;
+    border: 2px solid #e2e8f0;
+    border-radius: 10px;
     background: #fff;
     font-size: 0.9rem;
+    font-weight: 500;
+    color: #1e293b;
     cursor: pointer;
+    transition: all 0.2s;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='Length 19 9l-7 7-7-7'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 14px;
+}
+
+.grade-1 .select-teacher:focus {
+    border-color: var(--grade-1-color);
+    box-shadow: 0 0 0 3px rgba(244, 63, 94, 0.1);
+}
+
+.grade-2 .select-teacher:focus {
+    border-color: var(--grade-2-color);
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1);
+}
+
+.grade-3 .select-teacher:focus {
+    border-color: var(--grade-3-color);
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+}
+
+.grade-4 .select-teacher:focus {
+    border-color: var(--grade-4-color);
+    box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+}
+
+.grade-5 .select-teacher:focus {
+    border-color: var(--grade-5-color);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.grade-6 .select-teacher:focus {
+    border-color: var(--grade-6-color);
+    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
 }
 
 .select-teacher:hover {
-    border-color: #bbb;
+    border-color: #cbd5e1;
+}
+
+.btn-small {
+    padding: 6px 12px;
+    background: #f1f5f9;
+    border: none;
+    border-radius: 8px;
+    color: #475569;
+    font-weight: 600;
+    font-size: 0.85rem;
+    transition: all 0.2s;
+}
+
+.btn-small:hover:not(:disabled) {
+    background: #1e293b;
+    color: #fff;
+    transform: scale(1.05);
+}
+
+.btn-small:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 /* Quick Action Box */

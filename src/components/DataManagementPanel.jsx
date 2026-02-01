@@ -68,7 +68,7 @@ function DataManagementPanel({
 
                     <div className="grade-config-grid">
                         {[1, 2, 3, 4, 5, 6].map(grade => (
-                            <div key={grade} className="grade-card">
+                            <div key={grade} className={`grade-card grade-${grade}`}>
                                 <div className="grade-header">
                                     <span className="grade-title">{grade} 年級</span>
                                     <div className="grade-controls">

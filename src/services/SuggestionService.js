@@ -5,7 +5,7 @@ export const SuggestionService = {
      * Find potential swap suggestions using a BFS approach to find the shortest resolve path.
      * Often a single swap is enough, but sometimes a chain (A->B, B->C) is needed.
      */
-    findSwapSuggestions(classId, periodIndex, conflictType, currentSchedules, requirements, classes, teachers) {
+    findSwapSuggestions(classId, periodIndex, conflictType, currentSchedules, requirements, classes, teachers, courses) {
         const targetClassSchedule = currentSchedules.find(s => s.classId === classId);
         if (!targetClassSchedule) return [];
 
@@ -31,7 +31,7 @@ export const SuggestionService = {
             if (path.length > 0 && this.isSlotSafe(classId, periodIndex, currentPeriod, stateSchedules, teachers)) {
                 results.push({
                     path,
-                    description: this.formatPathToDescription(path, currentSchedules),
+                    description: this.formatPathToDescription(path, currentSchedules, courses),
                     score: 100 - (path.length * 20),
                     type: path.length > 1 ? 'CHAIN' : (path[0].type === 'MOVE' ? 'MOVE' : 'SWAP')
                 });
@@ -88,8 +88,8 @@ export const SuggestionService = {
         if (!period.teacherId) return true;
 
         // 1. Basic Eligibility (Grade restriction)
-        const cls = schedules.find(s => s.classId === classId);
-        if (!isSlotAllowed(idx, [])) return false; // Global slot check (lunch etc handled in types)
+        const grade = parseInt(classId.substring(1, 2)) || 1; // Extracts G1 -> 1
+        if (!isSlotAllowed(grade, idx)) return false;
 
         // 2. Teacher availability
         const teacher = teachers.find(t => t.id === period.teacherId);

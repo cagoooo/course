@@ -90,13 +90,39 @@ const ScheduleGrid = ({
 
         const content = isEmpty ? (
             <div className="cell-empty" onClick={() => editable && onCellClick && onCellClick(index)}>
-                {editable ? <span className="placeholder">+</span> : '-'}
+                {editable ? (
+                    <div className="empty-hover-hint">
+                        <span className="placeholder">+</span>
+                        <span className="hint-text">填寫</span>
+                    </div>
+                ) : '-'}
             </div>
         ) : (
             <div className={`cell-content ${hasConflict ? 'conflict-glow' : ''}`}>
                 <div className="cell-main">{renderName(cellData.topLine) || '-'}</div>
                 <div className="cell-sub">{renderName(cellData.bottomLine) || ''}</div>
                 {hasConflict && <div className="conflict-tag">⚠️ 衝突</div>}
+
+                {/* Hover Action Overlay */}
+                {editable && (
+                    <div className="cell-action-overlay">
+                        <div className="action-icons">
+                            <span className="action-btn move" title="拖拽移動">✋ </span>
+                            <span
+                                className="action-btn remove"
+                                title="移除課程"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (confirm(`確定要移除「${renderName(cellData.topLine)}」嗎？`)) {
+                                        onMove && onMove(index, -1);
+                                    }
+                                }}
+                            >
+                                🗑️
+                            </span>
+                        </div>
+                    </div>
+                )}
             </div>
         );
 

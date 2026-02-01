@@ -86,95 +86,80 @@ const TimeSlotGrid = ({ unavailableSlots = [], avoidSlots = [], onChange, readOn
         onChange(newUnavailable, newAvoid);
     };
 
-    const getCellColor = (status) => {
+    const getCellClass = (status) => {
         switch (status) {
-            case SLOT_STATUS.UNAVAILABLE: return '#fca5a5'; // Red-300
-            case SLOT_STATUS.AVOID: return '#fde047';       // Yellow-300
-            default: return '#86efac';                      // Green-300
+            case SLOT_STATUS.UNAVAILABLE: return 'ts-cell-unavailable';
+            case SLOT_STATUS.AVOID: return 'ts-cell-avoid';
+            default: return 'ts-cell-available';
         }
     };
 
-    const periodLabels = ["一", "二", "三", "四", "午", "五", "六", "七"]; // Using generic labels or maps
+    const periodLabels = ["一", "二", "三", "四", "午", "五", "六", "七"];
     const dayLabels = ["週一", "週二", "週三", "週四", "週五"];
 
     return (
-        <div className="time-slot-grid-container" style={{ userSelect: 'none' }}>
-            <div style={{ display: 'flex', gap: '8px', marginBottom: '8px', fontSize: '0.85rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <div style={{ width: 12, height: 12, backgroundColor: '#86efac', border: '1px solid #ccc' }}></div>
+        <div className="time-slot-grid-container">
+            <div className="ts-legend">
+                <div className="ts-legend-item">
+                    <div className="ts-dot ts-available"></div>
                     <span>可排</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <div style={{ width: 12, height: 12, backgroundColor: '#fde047', border: '1px solid #ccc' }}></div>
+                <div className="ts-legend-item">
+                    <div className="ts-dot ts-avoid"></div>
                     <span>盡量不排</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <div style={{ width: 12, height: 12, backgroundColor: '#fca5a5', border: '1px solid #ccc' }}></div>
+                <div className="ts-legend-item">
+                    <div className="ts-dot ts-unavailable"></div>
                     <span>不排</span>
                 </div>
             </div>
 
-            <table className="time-slot-grid" style={{ borderCollapse: 'collapse', width: '100%', fontSize: '0.9rem' }}>
-                <thead>
-                    <tr>
-                        <th style={{ width: '40px' }}></th>
-                        {dayLabels.map((day, d) => (
-                            <th
-                                key={day}
-                                onClick={() => handleColClick(d)}
-                                style={{
-                                    cursor: readOnly ? 'default' : 'pointer',
-                                    padding: '4px',
-                                    border: '1px solid #e5e7eb',
-                                    backgroundColor: '#f3f4f6'
-                                }}
-                                title="點擊切換整列狀態"
-                            >
-                                {day}
-                            </th>
-                        ))}
-                    </tr>
-                </thead>
-                <tbody>
-                    {Array.from({ length: PERIODS_PER_DAY }).map((_, t) => (
-                        <tr key={t}>
-                            <th
-                                onClick={() => handleRowClick(t)}
-                                style={{
-                                    cursor: readOnly ? 'default' : 'pointer',
-                                    padding: '4px',
-                                    border: '1px solid #e5e7eb',
-                                    backgroundColor: '#f3f4f6'
-                                }}
-                                title="點擊切換整行狀態"
-                            >
-                                {t + 1}
-                            </th>
-                            {Array.from({ length: DAYS_PER_WEEK }).map((_, d) => {
-                                const idx = d * PERIODS_PER_DAY + t;
-                                const status = slotsState[idx] || SLOT_STATUS.AVAILABLE;
-                                return (
-                                    <td
-                                        key={idx}
-                                        onClick={() => handleSlotClick(idx)}
-                                        style={{
-                                            backgroundColor: getCellColor(status),
-                                            border: '1px solid #e5e7eb',
-                                            textAlign: 'center',
-                                            cursor: readOnly ? 'default' : 'pointer',
-                                            height: '30px',
-                                            transition: 'background-color 0.2s'
-                                        }}
-                                    >
-
-                                    </td>
-                                );
-                            })}
+            <div className="ts-table-wrapper">
+                <table className="time-slot-grid">
+                    <thead>
+                        <tr>
+                            <th className="ts-corner-cell"></th>
+                            {dayLabels.map((day, d) => (
+                                <th
+                                    key={day}
+                                    onClick={() => handleColClick(d)}
+                                    className={`ts-header-cell ${readOnly ? '' : 'clickable'}`}
+                                    title="點擊切換整列狀態"
+                                >
+                                    {day}
+                                </th>
+                            ))}
                         </tr>
-                    ))}
-                </tbody>
-            </table>
-            {!readOnly && <small style={{ color: '#6b7280', display: 'block', marginTop: '4px' }}>* 點擊格字/標題可循環切換狀態</small>}
+                    </thead>
+                    <tbody>
+                        {Array.from({ length: PERIODS_PER_DAY }).map((_, t) => (
+                            <tr key={t}>
+                                <th
+                                    onClick={() => handleRowClick(t)}
+                                    className={`ts-header-cell ${readOnly ? '' : 'clickable'}`}
+                                    title="點擊切換整行狀態"
+                                >
+                                    {t + 1}
+                                </th>
+                                {Array.from({ length: DAYS_PER_WEEK }).map((_, d) => {
+                                    const idx = d * PERIODS_PER_DAY + t;
+                                    const status = slotsState[idx] || SLOT_STATUS.AVAILABLE;
+                                    return (
+                                        <td
+                                            key={idx}
+                                            onClick={() => handleSlotClick(idx)}
+                                            className={`ts-cell ${getCellClass(status)} ${readOnly ? '' : 'clickable'}`}
+                                        >
+
+                                        </td>
+                                    );
+                                })}
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+            {!readOnly && <small className="ts-hint">* 點擊格子/標題可循環切換狀態</small>}
         </div>
     );
 };

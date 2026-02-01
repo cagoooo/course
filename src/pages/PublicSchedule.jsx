@@ -38,7 +38,7 @@ function PublicSchedule() {
 
                 if (type === 'class') {
                     const cls = cl.find(c => c.id === id);
-                    if (cls) targetName = `${cls.grade}年${cls.name}班`;
+                    if (cls) targetName = cls.name;
                     rawSchedule = allSchedules.find(s => s.id === id);
                 } else if (type === 'teacher') {
                     const tch = te.find(t => t.id === id);

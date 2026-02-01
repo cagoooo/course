@@ -48,6 +48,6 @@ self.onmessage = (e) => {
 
         // Start the evolution process
         setTimeout(tick, 0);
-        console.log('Worker: Stopped.');
+        console.log('Worker: Loop initialized.');
     }
 };
