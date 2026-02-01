@@ -169,35 +169,77 @@
 .resolution-title {
     font-weight: 600;
     color: #38a169;
-    margin-bottom: 10px;
+    margin-bottom: 12px;
+    font-size: 0.95rem;
 }
 
-.available-slots {
+.suggestions-container {
     display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
+    flex-direction: column;
+    gap: 16px;
 }
 
-.slot-option {
-    background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
-    color: white;
-    border: none;
-    padding: 8px 14px;
-    border-radius: 6px;
+.section-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #a0aec0;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 8px;
+}
+
+.ai-suggestions {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.suggestion-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: white;
     font-size: 0.85rem;
+    color: #4a5568;
     cursor: pointer;
+    text-align: left;
     transition: all 0.2s;
 }
 
-.slot-option:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(72, 187, 120, 0.3);
+.suggestion-btn:hover {
+    background: #f7fafc;
+    border-color: #cbd5e0;
+    transform: translateX(4px);
 }
 
-.more-slots {
-    color: #718096;
-    font-size: 0.8rem;
-    align-self: center;
+.suggestion-btn.ai {
+    background: linear-gradient(135deg, #ebf4ff 0%, #fff 100%);
+    border-color: #bee3f8;
+    color: #2b6cb0;
+    font-weight: 500;
+}
+
+.suggestion-btn.ai:hover {
+    background: linear-gradient(135deg, #bee3f8 0%, #ebf4ff 100%);
+    border-color: #90cdf4;
+}
+
+.type-icon {
+    font-size: 1rem;
+}
+
+.empty-slots .slot-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 8px;
+}
+
+.empty-slots .suggestion-btn {
+    justify-content: center;
 }
 
 .no-solution {

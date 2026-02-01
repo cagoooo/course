@@ -8,6 +8,7 @@ import ExportPanel from '../components/ExportPanel';
 import ConflictResolver from '../components/ConflictResolver';
 import { isSlotAllowed } from '../algorithms/types.js';
 import { runDiagnostics } from '../algorithms/Diagnostics';
+import SnapshotManager from '../components/SnapshotManager';
 import './AutoSchedule_ProgressBar.css';
 
 
@@ -18,6 +19,7 @@ function AutoSchedule() {
     const [bestSolution, setBestSolution] = useState([]);
     const [draggingIndex, setDraggingIndex] = useState(null); // For smart suggestions
     const [showQRCode, setShowQRCode] = useState(false);
+    const [showSnapshotManager, setShowSnapshotManager] = useState(false);
 
     // Smart Fill State
     const [smartFillModal, setSmartFillModal] = useState({ show: false, slotIndex: null, candidates: [] });
@@ -1080,6 +1082,13 @@ function AutoSchedule() {
                                     <button className="btn btn-primary" onClick={handleStart} disabled={status === 'loading'}>
                                         ▶ 開始演算
                                     </button>
+                                    <button
+                                        className="btn btn-outline"
+                                        onClick={() => setShowSnapshotManager(true)}
+                                        style={{ marginLeft: '8px', borderColor: '#3949ab', color: '#3949ab' }}
+                                    >
+                                        📸 快照管理
+                                    </button>
                                     {bestSolution.length > 0 && (
                                         <>
                                             <button className="btn btn-primary" onClick={handleSave} style={{ background: '#10b981' }}>
@@ -1404,7 +1413,51 @@ function AutoSchedule() {
                     )}
                 </div>
             )}
+
+            {/* Snapshot Manager Modal */}
+            {showSnapshotManager && (
+                <SnapshotManager
+                    currentRequirements={requirements}
+                    currentSchedules={bestSolution.length > 0 ? classes.map(cls => {
+                        const classGenes = bestSolution.filter(g => g.classId === cls.id);
+                        const periods = Array(35).fill({ courseId: null, teacherId: null });
+                        classGenes.forEach(g => {
+                            if (g.periodIndex >= 0 && g.periodIndex < 35) {
+                                periods[g.periodIndex] = { courseId: g.courseId, teacherId: g.teacherId };
+                            }
+                        });
+                        return { classId: cls.id, periods };
+                    }) : null}
+                    onRestore={(snapshot) => {
+                        // Restore requirements
+                        if (snapshot.requirements) {
+                            setRequirements(snapshot.requirements);
+                        }
+                        // Restore schedules (set as best solution for preview/save)
+                        if (snapshot.schedules) {
+                            const genes = [];
+                            snapshot.schedules.forEach(sch => {
+                                sch.periods.forEach((p, idx) => {
+                                    if (p.courseId) {
+                                        genes.push({
+                                            classId: sch.classId,
+                                            periodIndex: idx,
+                                            courseId: p.courseId,
+                                            teacherId: p.teacherId
+                                        });
+                                    }
+                                });
+                            });
+                            setBestSolution(genes);
+                            setProgress({ generation: 0, score: 1000000 }); // High score for restored snapshot
+                            alert(`已載入快照「${snapshot.name}」，您可以預覽並點擊「儲存課表」正式套用。`);
+                        }
+                    }}
+                    onClose={() => setShowSnapshotManager(false)}
+                />
+            )}
         </div>
     );
 }
+
 export default AutoSchedule;

@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
 import './ConflictResolver.css';
+import { SuggestionService } from '../services/SuggestionService';
 
 const DAYS = ['週一', '週二', '週三', '週四', '週五'];
 const PERIODS = ['第一節', '第二節', '第三節', '第四節', '第五節', '第六節', '第七節'];
@@ -150,6 +150,27 @@ const ConflictResolver = ({
                                         const conflictedGene = bestSolution?.find(
                                             g => g.classId === classId && g.periodIndex === conflict.slotIndex
                                         );
+                                        const aiSuggestions = isSelected ? SuggestionService.findSwapSuggestions(
+                                            classId,
+                                            conflict.slotIndex,
+                                            conflict.type,
+                                            classes.map(cls => ({
+                                                classId: cls.id,
+                                                periods: Array(35).fill(null).map((_, i) => {
+                                                    const g = bestSolution?.find(bg => bg.classId === cls.id && bg.periodIndex === i);
+                                                    const course = g ? courses.find(c => c.id === g.courseId) : null;
+                                                    return {
+                                                        courseId: g?.courseId || null,
+                                                        teacherId: g?.teacherId || null,
+                                                        courseName: course?.name || ''
+                                                    };
+                                                })
+                                            })),
+                                            [], // Requirements (not fully needed for simple swap check here)
+                                            classes,
+                                            teachers
+                                        ) : [];
+
                                         const availableSlots = isSelected ? findAvailableSlots(conflictedGene) : [];
 
                                         return (
@@ -176,29 +197,50 @@ const ConflictResolver = ({
                                                 {isSelected && (
                                                     <div className="resolution-panel">
                                                         <div className="resolution-title">💡 建議解決方案</div>
-                                                        {availableSlots.length > 0 ? (
-                                                            <div className="available-slots">
-                                                                {availableSlots.slice(0, 6).map(slot => (
-                                                                    <button
-                                                                        key={slot}
-                                                                        className="slot-option"
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            onResolveConflict?.(classId, conflict.slotIndex, slot);
-                                                                        }}
-                                                                    >
-                                                                        移至 {formatSlot(slot)}
-                                                                    </button>
-                                                                ))}
-                                                                {availableSlots.length > 6 && (
-                                                                    <span className="more-slots">共 {availableSlots.length} 個可用時段</span>
+                                                        <div className="suggestions-container">
+                                                            {/* AI Suggestions (Swaps) */}
+                                                            {aiSuggestions.length > 0 && (
+                                                                <div className="ai-suggestions">
+                                                                    <div className="section-label">🧠 AI 智慧推薦</div>
+                                                                    {aiSuggestions.map((s, si) => (
+                                                                        <button
+                                                                            key={`ai-${si}`}
+                                                                            className="suggestion-btn ai"
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                onResolveConflict?.(classId, s.from, s.to);
+                                                                            }}
+                                                                        >
+                                                                            <span className="type-icon">{s.type === 'MOVE' ? '➡️' : '🔁'}</span>
+                                                                            {s.description}
+                                                                        </button>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+
+                                                            {/* Empty Slots */}
+                                                            <div className="empty-slots">
+                                                                <div className="section-label">🕳️ 前往空時段</div>
+                                                                {availableSlots.length > 0 ? (
+                                                                    <div className="slot-grid">
+                                                                        {availableSlots.slice(0, 10).map(slot => (
+                                                                            <button
+                                                                                key={slot}
+                                                                                className="suggestion-btn"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    onResolveConflict?.(classId, conflict.slotIndex, slot);
+                                                                                }}
+                                                                            >
+                                                                                {formatSlot(slot)}
+                                                                            </button>
+                                                                        ))}
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="no-solution">無可用空時段</div>
                                                                 )}
                                                             </div>
-                                                        ) : (
-                                                            <div className="no-solution">
-                                                                ⚠️ 無法自動解決，建議手動調整其他課程
-                                                            </div>
-                                                        )}
+                                                        </div>
                                                     </div>
                                                 )}
                                             </div>

@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { firestoreService } from '../services/firestoreService';
 import ScheduleGrid from '../components/ScheduleGrid';
+import './TeacherSchedule.css';
 
 function TeacherSchedule() {
     const [teachers, setTeachers] = useState([]);
@@ -8,21 +9,46 @@ function TeacherSchedule() {
     const [classes, setClasses] = useState([]);
 
     const [selectedTeacherId, setSelectedTeacherId] = useState('');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [filterType, setFilterType] = useState('all'); // 'all' | 'homeroom' | 'subject'
     const [scheduleData, setScheduleData] = useState(null);
     const [loading, setLoading] = useState(true);
 
-    // Initial Load: Teachers, Courses, Classes (for mapping)
+    // Initial Load
     useEffect(() => {
         async function init() {
+            setLoading(true);
             const [tList, cList, clList] = await Promise.all([
                 firestoreService.getTeachers(),
                 firestoreService.getCourses(),
                 firestoreService.getClasses()
             ]);
-            setTeachers(tList.map(t => ({
-                ...t,
-                name: (typeof t.name === 'object' && t.name !== null) ? (t.name.name || Object.values(t.name)[0]) : t.name
-            })));
+
+            // Map teachers with homeroom info
+            const processedTeachers = tList.map(t => {
+                const name = (typeof t.name === 'object' && t.name !== null) ? (t.name.name || Object.values(t.name)[0]) : t.name;
+                const homeroom = clList.find(c => c.homeroomTeacherId === t.id);
+
+                let homeroomLabel = null;
+                if (homeroom) {
+                    // Check if name already contains year/class info
+                    const hasYear = homeroom.name.includes('年');
+                    const hasClass = homeroom.name.includes('班');
+
+                    const gradePart = hasYear ? '' : `${homeroom.grade}年`;
+                    const classPart = hasClass ? '' : '班';
+                    homeroomLabel = `${gradePart}${homeroom.name}${classPart}`;
+                }
+
+                return {
+                    ...t,
+                    name,
+                    homeroomClass: homeroomLabel,
+                    isHomeroom: !!homeroom
+                };
+            });
+
+            setTeachers(processedTeachers);
             setCourses(cList.map(c => ({
                 ...c,
                 name: (typeof c.name === 'object' && c.name !== null) ? (c.name.name || Object.values(c.name)[0]) : c.name
@@ -33,53 +59,125 @@ function TeacherSchedule() {
         init();
     }, []);
 
-    // Fetch Schedule when Teacher Selected
+    // Filtered Teachers list
+    const filteredTeachers = useMemo(() => {
+        return teachers.filter(t => {
+            const matchesSearch = t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                (t.homeroomClass && t.homeroomClass.includes(searchQuery));
+
+            const matchesType =
+                filterType === 'all' ||
+                (filterType === 'homeroom' && t.isHomeroom) ||
+                (filterType === 'subject' && !t.isHomeroom);
+
+            return matchesSearch && matchesType;
+        }).sort((a, b) => {
+            // Sort: Homeroom teachers first, then by name
+            if (a.isHomeroom && !b.isHomeroom) return -1;
+            if (!a.isHomeroom && b.isHomeroom) return 1;
+            return a.name.localeCompare(b.name, 'zh-Hant');
+        });
+    }, [teachers, searchQuery, filterType]);
+
+    // Fetch Schedule
     useEffect(() => {
-        if (!selectedTeacherId) return;
+        if (!selectedTeacherId) {
+            setScheduleData(null);
+            return;
+        }
 
         async function fetchSchedule() {
-            // Get raw grid (periods with courseId, classId)
             const grid = await firestoreService.getTeacherSchedule(selectedTeacherId);
-
-            // Map IDs to Names for Display
             const mappedGrid = grid.map(cell => {
                 if (!cell) return null;
-
-                // Find Names
                 const cls = classes.find(c => c.id === cell.classId);
                 const crs = courses.find(c => c.id === cell.courseId);
-
                 return {
                     topLine: cls ? cls.name : cell.classId,
                     bottomLine: crs ? crs.name : cell.courseId
                 };
             });
-
             setScheduleData(mappedGrid);
         }
         fetchSchedule();
     }, [selectedTeacherId, classes, courses]);
 
-    return (
-        <div className="page-container">
-            <h2 className="page-title">教師課表查詢</h2>
+    if (loading && teachers.length === 0) {
+        return (
+            <div className="teacher-schedule-container">
+                <div className="loading-state">
+                    <div className="spinner"></div>
+                    <p>正在載入師資與課程資料...</p>
+                </div>
+            </div>
+        );
+    }
 
-            <div className="controls">
-                <select
-                    value={selectedTeacherId}
-                    onChange={(e) => setSelectedTeacherId(e.target.value)}
-                    className="main-select"
-                >
-                    <option value="">請選擇教師...</option>
-                    {teachers.map(t => (
-                        <option key={t.id} value={t.id}>{t.name}</option>
-                    ))}
-                </select>
+    return (
+        <div className="teacher-schedule-container">
+            <header className="header-section">
+                <h2 className="page-title">教師課表查詢</h2>
+            </header>
+
+            <div className="filter-panel">
+                <div className="search-group">
+                    <label className="field-label">🔎 關鍵字搜尋</label>
+                    <div className="input-wrapper">
+                        <span className="search-icon">🔍</span>
+                        <input
+                            type="text"
+                            placeholder="搜尋教師姓名或班級..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="search-input"
+                        />
+                    </div>
+                    <div className="type-filter-group">
+                        <button
+                            className={`filter-btn ${filterType === 'all' ? 'active' : ''}`}
+                            onClick={() => setFilterType('all')}
+                        >
+                            全部 ({teachers.length})
+                        </button>
+                        <button
+                            className={`filter-btn ${filterType === 'homeroom' ? 'active' : ''}`}
+                            onClick={() => setFilterType('homeroom')}
+                        >
+                            導師 ({teachers.filter(t => t.isHomeroom).length})
+                        </button>
+                        <button
+                            className={`filter-btn ${filterType === 'subject' ? 'active' : ''}`}
+                            onClick={() => setFilterType('subject')}
+                        >
+                            科任 ({teachers.filter(t => !t.isHomeroom).length})
+                        </button>
+                    </div>
+                </div>
+
+                <div className="select-group">
+                    <label className="field-label">👤 選擇教師</label>
+                    <select
+                        value={selectedTeacherId}
+                        onChange={(e) => setSelectedTeacherId(e.target.value)}
+                        className="main-select"
+                    >
+                        <option value="">選擇教師 ({filteredTeachers.length} 位符合)...</option>
+                        {filteredTeachers.map(t => (
+                            <option key={t.id} value={t.id}>
+                                {t.name} {t.homeroomClass ? `(${t.homeroomClass} 導師)` : '(科任)'}
+                            </option>
+                        ))}
+                    </select>
+                </div>
             </div>
 
-            {selectedTeacherId && (
-                <div className="schedule-view">
+            {selectedTeacherId ? (
+                <div className="schedule-card">
                     <ScheduleGrid schedule={scheduleData} type="teacher" />
+                </div>
+            ) : (
+                <div className="loading-state" style={{ background: 'rgba(255,255,255,0.5)', borderRadius: '20px', border: '2px dashed #e2e8f0' }}>
+                    <p>請從上方選單選擇一位教師以查看課表</p>
                 </div>
             )}
         </div>
