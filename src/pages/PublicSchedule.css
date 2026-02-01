@@ -1,0 +1,78 @@
+.public-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 1rem;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background-color: #f8fafc;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+.public-header {
+    text-align: center;
+    margin-bottom: 2rem;
+    padding: 2rem 0;
+    background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+    color: white;
+    border-radius: 1rem;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+
+.public-header h1 {
+    font-size: 1.8rem;
+    margin: 0;
+    font-weight: 800;
+}
+
+.public-subtitle {
+    font-size: 0.9rem;
+    opacity: 0.9;
+    margin-top: 0.5rem;
+}
+
+.public-content {
+    flex: 1;
+    background: white;
+    border-radius: 1rem;
+    padding: 0.5rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    overflow-x: auto;
+}
+
+.public-footer {
+    text-align: center;
+    padding: 2rem 0;
+    color: #64748b;
+    font-size: 0.8rem;
+}
+
+.public-loading,
+.public-error {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    font-size: 1.2rem;
+    color: #64748b;
+}
+
+.public-error {
+    color: #ef4444;
+}
+
+/* Override ScheduleGrid for mobile if needed */
+@media (max-width: 600px) {
+    .public-container {
+        padding: 0.5rem;
+    }
+
+    .public-header {
+        padding: 1.5rem 0;
+        margin-bottom: 1rem;
+    }
+
+    .public-header h1 {
+        font-size: 1.5rem;
+    }
+}

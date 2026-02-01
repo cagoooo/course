@@ -1,0 +1,234 @@
+.conflict-resolver {
+    background: linear-gradient(135deg, #fff8f0 0%, #fff 100%);
+    border: 1px solid #f0b866;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+    box-shadow: 0 4px 12px rgba(240, 140, 0, 0.1);
+}
+
+.conflict-resolver.empty {
+    background: linear-gradient(135deg, #f0fff4 0%, #fff 100%);
+    border-color: #68d391;
+}
+
+.resolver-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #f0d8b8;
+}
+
+.resolver-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: #c05621;
+}
+
+.conflict-count {
+    background: #ed8936;
+    color: white;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.btn-dismiss {
+    margin-left: auto;
+    background: transparent;
+    border: none;
+    font-size: 1.2rem;
+    cursor: pointer;
+    color: #a0aec0;
+    transition: color 0.2s;
+}
+
+.btn-dismiss:hover {
+    color: #e53e3e;
+}
+
+.no-conflicts {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 20px;
+    color: #38a169;
+    font-weight: 500;
+}
+
+.no-conflicts .icon {
+    font-size: 1.5rem;
+}
+
+/* 班級分組 */
+.conflict-class-group {
+    margin-bottom: 12px;
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.class-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    background: #fef5eb;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.class-header:hover {
+    background: #fdebd5;
+}
+
+.class-name {
+    font-weight: 600;
+    color: #744210;
+}
+
+.conflict-badge {
+    background: #dd6b20;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.expand-icon {
+    margin-left: auto;
+    color: #a0aec0;
+    font-size: 0.8rem;
+}
+
+/* 衝突詳情 */
+.conflicts-detail {
+    padding: 8px;
+}
+
+.conflict-item {
+    padding: 12px;
+    margin-bottom: 8px;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.conflict-item:hover {
+    border-color: #ed8936;
+    box-shadow: 0 2px 8px rgba(237, 137, 54, 0.15);
+}
+
+.conflict-item.selected {
+    border-color: #dd6b20;
+    background: #fffaf5;
+}
+
+.conflict-info {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.slot-info {
+    font-weight: 600;
+    color: #2d3748;
+}
+
+.conflict-type {
+    background: #fed7aa;
+    color: #c05621;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+}
+
+.conflict-detail {
+    width: 100%;
+    margin-top: 6px;
+    color: #718096;
+    font-size: 0.9rem;
+}
+
+/* 解決方案面板 */
+.resolution-panel {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px dashed #e2e8f0;
+}
+
+.resolution-title {
+    font-weight: 600;
+    color: #38a169;
+    margin-bottom: 10px;
+}
+
+.available-slots {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.slot-option {
+    background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+    color: white;
+    border: none;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.slot-option:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(72, 187, 120, 0.3);
+}
+
+.more-slots {
+    color: #718096;
+    font-size: 0.8rem;
+    align-self: center;
+}
+
+.no-solution {
+    color: #e53e3e;
+    font-size: 0.9rem;
+    padding: 8px;
+    background: #fff5f5;
+    border-radius: 6px;
+}
+
+/* RWD */
+@media (max-width: 768px) {
+    .conflict-resolver {
+        padding: 12px;
+    }
+
+    .resolver-header h3 {
+        font-size: 1rem;
+    }
+
+    .conflict-info {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .available-slots {
+        flex-direction: column;
+    }
+
+    .slot-option {
+        width: 100%;
+        text-align: center;
+    }
+}

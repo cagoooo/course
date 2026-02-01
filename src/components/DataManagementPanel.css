@@ -1,0 +1,318 @@
+/* DataManagementPanel.css */
+
+.management-panel {
+    padding: 1rem;
+}
+
+.panel-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.card {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    /* More premium shadow */
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+}
+
+.card h3 {
+    margin-top: 0;
+    margin-bottom: 1.5rem;
+    font-size: 1.25rem;
+    color: #333;
+    border-bottom: 2px solid #f0f0f0;
+    padding-bottom: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* Grade Configuration - RWD Grid */
+.grade-config-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    /* Slightly wider min-width */
+    gap: 1.5rem;
+    /* Increased gap */
+}
+
+.grade-card {
+    border: 1px solid #e0e0e0;
+    border-radius: 10px;
+    padding: 1.25rem;
+    background: #fafafa;
+    transition: all 0.2s ease;
+}
+
+.grade-card:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    background: #fff;
+    border-color: #d0d0d0;
+}
+
+.grade-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px dashed #ddd;
+}
+
+.grade-title {
+    font-size: 1.1rem;
+    font-weight: bold;
+    color: #444;
+}
+
+.grade-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.input-class-count {
+    width: 60px;
+    padding: 4px 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    text-align: center;
+}
+
+.class-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.class-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    /* Space out label and select */
+    gap: 0.75rem;
+}
+
+.class-label {
+    font-size: 0.95rem;
+    color: #555;
+    white-space: nowrap;
+    /* Prevent breaking */
+    min-width: 70px;
+    /* Fixed width for alignment */
+}
+
+.select-teacher {
+    flex: 1;
+    /* Take remaining space */
+    padding: 6px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #fff;
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+
+.select-teacher:hover {
+    border-color: #bbb;
+}
+
+/* Quick Action Box */
+.quick-action-box {
+    margin-top: 1.5rem;
+    padding: 1.25rem;
+    background: linear-gradient(135deg, #f0f9ff 0%, #e6f7ff 100%);
+    border-radius: 8px;
+    border: 1px solid #bae7ff;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+}
+
+.quick-action-box h4 {
+    margin: 0;
+    color: #0050b3;
+}
+
+.quick-action-box p {
+    margin: 0;
+    color: #555;
+    font-size: 0.9rem;
+}
+
+/* Mobile Adjustments */
+@media (max-width: 768px) {
+    .panel-row {
+        flex-direction: column;
+    }
+
+    .grade-config-grid {
+        grid-template-columns: 1fr;
+        /* Stack vertically on mobile */
+    }
+
+    .class-item {
+        flex-direction: column;
+        /* Stack label and select on very small screens? No, row is usually fine unless VERY small */
+        align-items: stretch;
+    }
+
+    .class-label {
+        margin-bottom: 2px;
+    }
+}
+
+/* Modal Styles */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.modal-content {
+    background: white;
+    padding: 2rem;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+    width: 90%;
+    max-width: 500px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.modal-content h3 {
+    margin-top: 0;
+    color: #333;
+}
+
+.modal-hint {
+    color: #666;
+    font-size: 0.9rem;
+    margin-bottom: 1.5rem;
+}
+
+.constraint-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-bottom: 1.5rem;
+    border: 1px solid #ddd;
+    background: #ccc;
+    /* grid lines */
+}
+
+.grid-header-row,
+.grid-row {
+    display: flex;
+    background: white;
+}
+
+.grid-header {
+    flex: 1;
+    text-align: center;
+    padding: 8px;
+    font-weight: bold;
+    background: #f8f9fa;
+}
+
+.grid-corner,
+.grid-period-label {
+    width: 60px;
+    background: #f1f3f5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    font-weight: bold;
+}
+
+.grid-cell {
+    flex: 1;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border: 1px solid white;
+    /* internal borders handled by bg/gap trick usually, but this is simpler */
+    transition: background 0.1s;
+}
+
+.grid-cell:hover {
+    background: #f0f0f0;
+}
+
+.grid-cell.unavailable {
+    background: #ffebeb;
+    color: red;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.btn-constraint {
+    margin-right: 4px;
+    background: #8b5cf6;
+
+    /* Violet */
+}
+
+.card-header-with-action {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    border-bottom: 2px solid #f0f0f0;
+    padding-bottom: 0.75rem;
+}
+
+.card-header-with-action h3 {
+    margin: 0;
+    border: none;
+    padding: 0;
+}
+
+.hint-text {
+    font-size: 0.85rem;
+    color: #64748b;
+    margin-bottom: 1rem;
+}
+
+.teacher-constraint-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.teacher-constraint-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: #f8fafc;
+    border-radius: 6px;
+    font-size: 0.95rem;
+}
+
+.quick-action-btns {
+    display: flex;
+    gap: 10px;
+}
