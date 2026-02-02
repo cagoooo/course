@@ -162,7 +162,8 @@
 }
 
 .row-break .data-cell {
-    min-height: 48px;
+    min-height: 48px !important;
+    height: 48px !important;
     background: repeating-linear-gradient(45deg,
             transparent,
             transparent 10px,
@@ -173,9 +174,12 @@
 }
 
 .row-break .time-cell {
-    font-size: 0.75rem;
-    color: #94a3b8;
-    background: #f8fafc;
+    min-height: 48px !important;
+    height: 48px !important;
+    font-size: 0.9rem !important;
+    font-weight: 700;
+    color: #475569;
+    background: #f1f5f9;
 }
 
 /* Interactive States */
@@ -475,8 +479,28 @@
     }
 
     .row-break {
-        height: 20px;
-        background: #eee !important;
+        height: 60px !important;
+        /* Slightly taller for print clarity */
+        background: #f1f5f9 !important;
+        border-bottom: 2px solid #000;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    .row-break .data-cell,
+    .row-break .time-cell {
+        min-height: 60px !important;
+        height: 60px !important;
+        border-right: 2px solid #000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .row-break .time-cell {
+        font-size: 12pt !important;
+        font-weight: 900 !important;
+        color: #000 !important;
     }
 
     /* Paper size & Orientation @page rules */
