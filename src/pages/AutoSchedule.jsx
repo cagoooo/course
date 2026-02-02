@@ -38,6 +38,7 @@ function AutoSchedule() {
     // Diagnostics State
     const [showDiagnostics, setShowDiagnostics] = useState(false);
     const [diagnosticResults, setDiagnosticResults] = useState([]);
+    const [printFilter, setPrintFilter] = useState(null); // { type: 'grade' | 'category', value: any }
 
     const handleRunDiagnostics = () => {
         const results = runDiagnostics(teachers, requirements, classes);
@@ -957,11 +958,14 @@ function AutoSchedule() {
         setSmartFillModal({ show: false, slotIndex: null, candidates: [] });
     };
 
-    const handleBatchPrint = (type) => {
+    const handleBatchPrint = (type, filter = null) => {
         setPrintType(type);
+        setPrintFilter(filter);
         setPrintSettings(prev => ({
             ...prev,
-            titleTemplate: type === 'class' ? '{grade}年{name}班 課表' : '{name} 老師課表'
+            titleTemplate: type === 'class' ? '{grade}年{name}班 課表' :
+                type === 'teacher' ? '{name} 老師課表' :
+                    '{name} 使用課表'
         }));
         setShowPrintModal(true);
     };
@@ -983,10 +987,23 @@ function AutoSchedule() {
         setPrintSettings(settings);
         setShowPrintModal(false);
         setIsBatchPrinting(true);
+
+        // Dynamic @page style injection
+        const styleId = 'print-page-style';
+        let styleEl = document.getElementById(styleId);
+        if (!styleEl) {
+            styleEl = document.createElement('style');
+            styleEl.id = styleId;
+            document.head.appendChild(styleEl);
+        }
+        styleEl.innerHTML = `@page { size: ${settings.paperSize} ${settings.layout}; margin: 10mm; }`;
+
         setTimeout(() => {
             window.print();
             setIsBatchPrinting(false);
-        }, 800);
+            // Clean up style
+            if (styleEl) styleEl.innerHTML = '';
+        }, 1200); // Increased delay for rendering large batches
     };
 
     const formatPrintTitle = (template, item) => {
@@ -1024,6 +1041,25 @@ function AutoSchedule() {
                 grid[g.periodIndex] = {
                     topLine: crs ? crs.name : `ID:${g.courseId}`,
                     bottomLine: cls ? `${cls.grade}-${cls.classNum}班` : ''
+                };
+            }
+        });
+        return grid;
+    };
+
+    const getFullGridForClassroom = (classroomId) => {
+        const grid = Array(35).fill(null);
+        if (!bestSolution || bestSolution.length === 0) return grid;
+        bestSolution.forEach(g => {
+            const tch = teachers.find(t => t.id === g.teacherId);
+            const effectiveClassroomId = g.classroomId || (tch?.classroomId);
+
+            if (effectiveClassroomId === classroomId && g.periodIndex >= 0 && g.periodIndex < 35) {
+                const crs = courses.find(c => c.id === g.courseId);
+                const cls = classes.find(c => c.id === g.classId);
+                grid[g.periodIndex] = {
+                    topLine: cls ? `${cls.grade}-${cls.classNum}班` : '未知班級',
+                    bottomLine: `${crs ? crs.name : ''} ${tch ? tch.name : ''}`
                 };
             }
         });
@@ -1536,7 +1572,8 @@ function AutoSchedule() {
                             teachers={teachers}
                             courses={courses}
                             bestSolution={bestSolution}
-                            classrooms={classrooms} // Ensure this prop is passed
+                            classrooms={classrooms}
+                            onBatchPrint={handleBatchPrint}
                         />
                     )}
                 </div>
@@ -1654,29 +1691,59 @@ function AutoSchedule() {
                     style={{ '--print-font-size': `${printSettings.fontSize}px` }}
                 >
                     {printType === 'class' ? (
-                        classes.map(c => (
-                            <div key={c.id} className="print-page-break">
-                                <h1 className="print-report-title">{formatPrintTitle(printSettings.titleTemplate, c)}</h1>
-                                <ScheduleGrid
-                                    schedule={getFullGridForClass(c.id).map(p => ({
-                                        ...p,
-                                        topLine: printSettings.showCourseName ? p?.topLine : '',
-                                        bottomLine: printSettings.showTeacherName ? p?.bottomLine : ''
-                                    }))}
-                                    type="class"
-                                    editable={false}
-                                />
-                            </div>
-                        ))
+                        classes
+                            .filter(c => !printFilter || (printFilter.type === 'grade' && Number(c.grade) === printFilter.value))
+                            .map(c => (
+                                <div key={c.id} className="print-page-break">
+                                    <h1 className="print-report-title">{formatPrintTitle(printSettings.titleTemplate, c)}</h1>
+                                    <ScheduleGrid
+                                        schedule={getFullGridForClass(c.id).map(p => ({
+                                            ...p,
+                                            topLine: printSettings.showCourseName ? p?.topLine : '',
+                                            bottomLine: printSettings.showTeacherName ? p?.bottomLine : ''
+                                        }))}
+                                        type="class"
+                                        editable={false}
+                                    />
+                                </div>
+                            ))
+                    ) : printType === 'teacher' ? (
+                        teachers
+                            .filter(t => t.id !== 'none')
+                            .filter(t => {
+                                if (!printFilter) return true;
+                                if (printFilter.type === 'category') {
+                                    const cat = printFilter.value;
+                                    const homeroomTeacherIds = new Set(classes.map(c => c.teacherId).filter(id => id));
+                                    if (cat === 'homeroom') return homeroomTeacherIds.has(t.id);
+                                    if (cat === 'subject') return !homeroomTeacherIds.has(t.id) && !t.name.includes('主任') && !t.name.includes('校長');
+                                    if (cat === 'admin') return t.name.includes('主任') || t.name.includes('校長') || t.name.includes('組長');
+                                }
+                                return true;
+                            })
+                            .map(t => (
+                                <div key={t.id} className="print-page-break">
+                                    <h1 className="print-report-title">{formatPrintTitle(printSettings.titleTemplate, t)}</h1>
+                                    <ScheduleGrid
+                                        schedule={getFullGridForTeacher(t.id).map(p => ({
+                                            ...p,
+                                            topLine: printSettings.showCourseName ? p?.topLine : '',
+                                            bottomLine: printSettings.showClassName ? p?.bottomLine : ''
+                                        }))}
+                                        type="teacher"
+                                        editable={false}
+                                    />
+                                </div>
+                            ))
                     ) : (
-                        teachers.filter(t => t.id !== 'none').map(t => (
-                            <div key={t.id} className="print-page-break">
-                                <h1 className="print-report-title">{formatPrintTitle(printSettings.titleTemplate, t)}</h1>
+                        classrooms.map(room => (
+                            <div key={room.id} className="print-page-break">
+                                <h1 className="print-report-title">{formatPrintTitle(printSettings.titleTemplate, { ...room, grade: '' })}</h1>
                                 <ScheduleGrid
-                                    schedule={getFullGridForTeacher(t.id).map(p => ({
+                                    schedule={getFullGridForClassroom(room.id).map(p => ({
                                         ...p,
-                                        topLine: printSettings.showCourseName ? p?.topLine : '',
-                                        bottomLine: printSettings.showClassName ? p?.bottomLine : ''
+                                        topLine: printSettings.showClassName ? p?.topLine : '',
+                                        bottomLine: printSettings.showCourseName ? p?.bottomLine : ''
                                     }))}
                                     type="teacher"
                                     editable={false}

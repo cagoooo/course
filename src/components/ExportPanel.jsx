@@ -3,7 +3,7 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import ScheduleGrid from './ScheduleGrid';
 
-const ExportPanel = ({ classes, teachers, courses, bestSolution, classrooms }) => {
+const ExportPanel = ({ classes, teachers, courses, bestSolution, classrooms, onBatchPrint }) => {
     const [generating, setGenerating] = useState(false);
     const [statusText, setStatusText] = useState('');
     const printRef = useRef(null);
@@ -37,20 +37,20 @@ const ExportPanel = ({ classes, teachers, courses, bestSolution, classrooms }) =
                 if (type === 'class') {
                     // Class View: Show Subject + Teacher
                     cellData = {
-                        top: course ? renderName(course.name) : '無',
-                        bottom: teacher ? renderName(teacher.name) : ''
+                        topLine: course ? renderName(course.name) : '無',
+                        bottomLine: teacher ? renderName(teacher.name) : ''
                     };
                 } else if (type === 'teacher') {
                     // Teacher View: Show Class + Subject
                     cellData = {
-                        top: cls ? renderName(cls.name) : '未知班級',
-                        bottom: course ? renderName(course.name) : ''
+                        topLine: cls ? renderName(cls.name) : '未知班級',
+                        bottomLine: course ? renderName(course.name) : ''
                     };
                 } else if (type === 'classroom') {
                     // Classroom View: Show Class + Teacher + Subject
                     cellData = {
-                        top: cls ? renderName(cls.name) : '空堂',
-                        bottom: `${course ? renderName(course.name) : ''} ${teacher ? renderName(teacher.name) : ''}`
+                        topLine: cls ? renderName(cls.name) : '空堂',
+                        bottomLine: `${course ? renderName(course.name) : ''} ${teacher ? renderName(teacher.name) : ''}`
                     };
                 }
 
@@ -187,12 +187,20 @@ const ExportPanel = ({ classes, teachers, courses, bestSolution, classrooms }) =
                         📚 班級課表 (分年級)
                     </h4>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                        <button
+                            className="btn btn-outline-primary"
+                            disabled={generating}
+                            onClick={() => onBatchPrint ? onBatchPrint('class', null) : alert('請使用批次列印功能')}
+                            style={{ minWidth: '100%', marginBottom: '10px' }}
+                        >
+                            👨‍👩‍👧‍👦 全體班級 (分頁彙整)
+                        </button>
                         {[1, 2, 3, 4, 5, 6].map(g => (
                             <button
                                 key={g}
                                 className="btn btn-outline-primary"
                                 disabled={generating}
-                                onClick={() => handleExportGrade(g)}
+                                onClick={() => onBatchPrint ? onBatchPrint('class', { type: 'grade', value: g }) : handleExportGrade(g)}
                                 style={{ minWidth: '80px' }}
                             >
                                 📄 {g} 年級
@@ -210,28 +218,28 @@ const ExportPanel = ({ classes, teachers, courses, bestSolution, classrooms }) =
                         <button
                             className="btn btn-outline-success"
                             disabled={generating}
-                            onClick={() => handleExportTeachers('all')}
+                            onClick={() => onBatchPrint ? onBatchPrint('teacher', null) : handleExportTeachers('all')}
                         >
                             👨‍🏫 全體教師 (彙整)
                         </button>
                         <button
                             className="btn btn-outline-success"
                             disabled={generating}
-                            onClick={() => handleExportTeachers('homeroom')}
+                            onClick={() => onBatchPrint ? onBatchPrint('teacher', { type: 'category', value: 'homeroom' }) : handleExportTeachers('homeroom')}
                         >
                             📋 導師
                         </button>
                         <button
                             className="btn btn-outline-success"
                             disabled={generating}
-                            onClick={() => handleExportTeachers('subject')}
+                            onClick={() => onBatchPrint ? onBatchPrint('teacher', { type: 'category', value: 'subject' }) : handleExportTeachers('subject')}
                         >
                             🧪 科任教師
                         </button>
                         <button
                             className="btn btn-outline-secondary"
                             disabled={generating}
-                            onClick={() => handleExportTeachers('admin')}
+                            onClick={() => onBatchPrint ? onBatchPrint('teacher', { type: 'category', value: 'admin' }) : handleExportTeachers('admin')}
                         >
                             💼 行政教師
                         </button>
@@ -247,7 +255,7 @@ const ExportPanel = ({ classes, teachers, courses, bestSolution, classrooms }) =
                         <button
                             className="btn btn-outline-warning"
                             disabled={generating}
-                            onClick={handleExportClassrooms}
+                            onClick={() => onBatchPrint ? onBatchPrint('classroom', null) : handleExportClassrooms()}
                         >
                             🎹 專科教室 (彙整)
                         </button>
