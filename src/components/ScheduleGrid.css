@@ -1,16 +1,19 @@
-/* ScheduleGrid.css */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
+
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
+
 :root {
-    --grid-border: #e2e8f0;
+    --grid-border: #1e293b;
     --grid-bg: #ffffff;
     --grid-header-bg: #f8fafc;
     --grid-active-bg: #f1f5f9;
     --accent-color: #6366f1;
-    --text-main: #1e293b;
-    --text-sub: #64748b;
-    --cell-min-height: 90px;
-    --time-col-width: 70px;
-    --radius-lg: 20px;
-    --shadow-sm: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
+    --text-main: #0f172a;
+    --text-sub: #475569;
+    --cell-min-height: 100px;
+    --time-col-width: 90px;
+    --radius-lg: 12px;
+    --shadow-sm: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
 }
 
 .schedule-container {
@@ -43,8 +46,9 @@
     display: grid;
     grid-template-columns: var(--time-col-width) repeat(5, 1fr);
     background: var(--grid-header-bg);
-    border-bottom: 2px solid var(--grid-border);
+    border-bottom: 4px double var(--grid-border);
     min-width: 800px;
+    font-family: 'Noto Sans TC', sans-serif;
 }
 
 .header-cell {
@@ -150,18 +154,18 @@
 
 /* Row break styling */
 .row-break {
-    background: #f8fafc;
-    height: 44px;
+    background: #f1f5f9 !important;
+    height: 48px !important;
+    border-bottom: 2px solid var(--grid-border);
 }
 
 .row-break .data-cell {
-    min-height: 44px;
+    min-height: 48px;
     background: repeating-linear-gradient(45deg,
-            #f8fafc,
-            #f8fafc 10px,
-            #f1f5f9 10px,
-            #f1f5f9 20px);
-    opacity: 0.6;
+            transparent,
+            transparent 10px,
+            rgba(203, 213, 225, 0.3) 10px,
+            rgba(203, 213, 225, 0.3) 20px) !important;
 }
 
 .row-break .time-cell {
@@ -412,11 +416,13 @@
 
     .print-report-title {
         text-align: center;
-        margin-bottom: 20px;
-        font-size: 2rem;
+        margin-bottom: 30px;
+        font-size: 2.2rem;
+        font-weight: 800;
         color: #000;
-        border-bottom: 4px double #000;
-        padding-bottom: 10px;
+        border-bottom: 5px double #000;
+        padding-bottom: 12px;
+        font-family: 'Noto Sans TC', serif;
     }
 
     .schedule-container {
@@ -439,8 +445,11 @@
     .time-cell {
         border-right: 1px solid #000;
         background: none !important;
-        min-height: 0;
-        /* Let it shrink/grow */
+        min-height: 80px;
+        /* Ensure enough space for two lines */
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
 
     .cell-main {

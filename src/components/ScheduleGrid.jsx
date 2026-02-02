@@ -219,16 +219,23 @@ const ScheduleGrid = ({
                     ))}
                 </div>
 
-                {PERIODS.map((periodName, uiRowIndex) => (
-                    <div key={uiRowIndex} className={`schedule-row ${getDataPeriodIndex(uiRowIndex) === -1 ? 'row-break' : ''}`}>
-                        <div className="time-cell">{periodName}</div>
-                        {DAYS.map((_, dayIdx) => (
-                            <div key={`${dayIdx}-${uiRowIndex}`} className="data-cell">
-                                {renderCell(dayIdx, uiRowIndex)}
+                {PERIODS.map((periodName, uiRowIndex) => {
+                    const isBreak = getDataPeriodIndex(uiRowIndex) === -1;
+                    return (
+                        <div key={uiRowIndex} className={`schedule-row ${isBreak ? 'row-break' : ''}`}>
+                            <div className="time-cell">
+                                {isBreak ? (
+                                    <div className="break-label">{periodName}</div>
+                                ) : periodName}
                             </div>
-                        ))}
-                    </div>
-                ))}
+                            {DAYS.map((_, dayIdx) => (
+                                <div key={`${dayIdx}-${uiRowIndex}`} className="data-cell">
+                                    {renderCell(dayIdx, uiRowIndex)}
+                                </div>
+                            ))}
+                        </div>
+                    );
+                })}
             </div>
             <div className="mobile-scroll-hint">↔ 左右滑動查看完整課表</div>
         </div>
