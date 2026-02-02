@@ -157,6 +157,8 @@
     background: #f1f5f9 !important;
     height: 48px !important;
     border-bottom: 2px solid var(--grid-border);
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
 }
 
 .row-break .data-cell {
@@ -166,6 +168,8 @@
             transparent 10px,
             rgba(203, 213, 225, 0.3) 10px,
             rgba(203, 213, 225, 0.3) 20px) !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
 }
 
 .row-break .time-cell {
@@ -428,7 +432,7 @@
     .schedule-container {
         flex: 1;
         box-shadow: none;
-        border: 2px solid #000;
+        border: 4px solid #000;
         border-radius: 0;
         overflow: visible;
         width: 100% !important;
@@ -438,12 +442,13 @@
     .schedule-header,
     .schedule-row {
         min-width: 100% !important;
-        border-bottom: 1px solid #000;
+        border-bottom: 2px solid #000;
+        border-top: 1px solid #000;
     }
 
     .data-cell,
     .time-cell {
-        border-right: 1px solid #000;
+        border-right: 2px solid #000;
         background: none !important;
         min-height: 80px;
         /* Ensure enough space for two lines */
@@ -453,15 +458,19 @@
     }
 
     .cell-main {
-        font-size: var(--print-font-size, 14px) !important;
+        font-size: 16pt !important;
+        font-weight: 900 !important;
         color: #000 !important;
+        margin-bottom: 4px;
+        line-height: 1.2;
     }
 
     .cell-sub {
-        font-size: calc(var(--print-font-size, 14px) * 0.8) !important;
+        font-size: 10pt !important;
+        font-weight: 600 !important;
         background: none !important;
         border: none !important;
-        color: #333 !important;
+        color: #555 !important;
         padding: 0 !important;
     }
 
