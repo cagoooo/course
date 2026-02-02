@@ -17,7 +17,10 @@ function Navbar() {
 
     return (
         <nav className="main-nav">
-            <div className="nav-logo">📅 SMES 課表系統</div>
+            <div className="nav-logo">
+                <img src="./logo.png" alt="Logo" className="nav-logo-img" />
+                SMES 課表系統
+            </div>
             <div className="nav-links">
                 {/* Group 1: Navigation Items */}
                 <div className="nav-group-items">
