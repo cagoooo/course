@@ -159,6 +159,12 @@ export class ConstraintChecker {
                     if (slots.length >= 5 && uniqueDays.size < 5) {
                         softPenalties += (5 - uniqueDays.size) * 200;
                     }
+
+                    // [NEW] Morning Preference: Penalty for afternoon slots (Indices 4, 5, 6)
+                    slots.forEach(s => {
+                        if ((s % 7) >= 4) softPenalties += 50;
+                    });
+
                 } else if (courseName.includes('數')) {
                     const dayCount = {};
                     days.forEach(d => {
@@ -168,6 +174,11 @@ export class ConstraintChecker {
                         // Strong penalty for > 1 period/day
                         if (count > 1) softPenalties += (count - 1) * 2000;
                     }
+
+                    // [NEW] Morning Preference: Penalty for afternoon slots (Indices 4, 5, 6)
+                    slots.forEach(s => {
+                        if ((s % 7) >= 4) softPenalties += 50;
+                    });
                 } else {
                     if (uniqueDays.size < slots.length) {
                         softPenalties += (slots.length - uniqueDays.size);
