@@ -1,15 +1,19 @@
-# SMES AI 智慧排課系統 (v2.1.3)
+# SMES AI 智慧排課系統 (v2.5.0)
 
-![Roadmap 2.1](https://img.shields.io/badge/Roadmap-2.1.3-blueviolet?style=for-the-badge&logo=react)
+![Roadmap 2.5](https://img.shields.io/badge/Roadmap-2.5.0-blue?style=for-the-badge&logo=react)
 ![Firebase](https://img.shields.io/badge/Firebase-Auth%20%7C%20Firestore-orange?style=for-the-badge&logo=firebase)
 
 本系統是針對「石門國民小學」開發的智慧化自動排課與管理平台，旨在取代傳統的桌機版 STC 系統，提供雲端同步、AI 衝突解決與現代化的使用者體驗。
 
-## ✨ 最新更新 (v2.1.3)
+## ✨ 最新更新 (v2.5.0) - User Management & Mobile UX
+*   **📱 手機端體驗優化**：新增 LINE/Facebook 內建瀏覽器偵測阻擋 (In-App Browser Guard)，引導使用者開啟預設瀏覽器以解決 Google 登入錯誤。
+*   **👥 用戶權限管理強化**：新增「刪除帳號」功能，並內建防止刪除管理員的安全機制 (Admin-safe deletion)。
+*   **🖨️ "Editorial Luxury" 列印排版**：全面升級課表匯出樣式，採用 4px/2px 粗黑高對比格線與 16pt 特粗字體，確保清晰的紙本閱讀體驗。
+*   **🔧 部署穩定性**：修復 GitHub Pages 路徑 (404) 問題與 CI/CD 環境變數注入邏輯。
+
+## ✨ 核心特色 (Roadmap 2.1)
 *   **PWA 全面支援**：支援離線查看課表，並可將系統安裝至手機桌面（Add to Home Screen）。
 *   **離線資料同步**：實作 IndexedDB 本地資料庫，在網路不穩時仍能讀取教師與班級設定。
-*   **單元測試優階**：引入 Vitest 測試框架，確保核心排課演算與衝突檢測邏輯的穩定性。
-*   **效能優化**：優化 React Hook 調用與 React 19 相容性，解決開發環境下的快取衝突問題。
 
 ## ✨ 核心特色 (Roadmap 2.0)
 

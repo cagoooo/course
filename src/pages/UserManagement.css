@@ -31,6 +31,7 @@
     padding: 1.2rem 1rem;
     border-bottom: 1px solid #edf2f7;
     vertical-align: middle;
+    white-space: nowrap;
 }
 
 .user-profile {
@@ -52,6 +53,8 @@
     border-radius: 12px;
     font-size: 0.85rem;
     font-weight: 600;
+    white-space: nowrap;
+    display: inline-block;
 }
 
 .role-badge.admin {
@@ -88,6 +91,7 @@
     display: flex;
     align-items: center;
     gap: 12px;
+    white-space: nowrap;
 }
 
 .btn-delete {
