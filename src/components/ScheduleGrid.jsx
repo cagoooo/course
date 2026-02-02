@@ -1,5 +1,6 @@
 import React from 'react';
 import './ScheduleGrid.css';
+import './ScheduleGrid_Diff.css';
 import { PERIODS_PER_DAY, getDayIndex, getTimeSlotIndex, isSlotAllowed } from '../algorithms/types.js';
 
 const PERIODS = [
@@ -33,15 +34,22 @@ const ScheduleGrid = ({
     onDragStart,
     onDragEnd,
     safeSlots = [],
-    onCellClick // New prop for smart fill
+    onCellClick,
+    canDrag, // New prop: (index) => boolean
+    diffMap // New prop: Map<index, { status, old, new }>
 }) => {
-    // schedule: Array[35] of { classId, courseId, teacherId, name... }
-    // conflicts: Set of indices that have teacher conflicts
 
     if (!schedule) return <div className="loading">查無課表資料</div>;
 
     const handleDragStart = (e, index) => {
         if (!editable) return;
+
+        // RBAC Check
+        if (canDrag && !canDrag(index)) {
+            e.preventDefault();
+            return;
+        }
+
         e.dataTransfer.setData('text/plain', index);
         e.dataTransfer.effectAllowed = 'move';
         e.target.style.opacity = '0.5';
@@ -107,19 +115,23 @@ const ScheduleGrid = ({
                 {editable && (
                     <div className="cell-action-overlay">
                         <div className="action-icons">
-                            <span className="action-btn move" title="拖拽移動">✋ </span>
-                            <span
-                                className="action-btn remove"
-                                title="移除課程"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (confirm(`確定要移除「${renderName(cellData.topLine)}」嗎？`)) {
-                                        onMove && onMove(index, -1);
-                                    }
-                                }}
-                            >
-                                🗑️
-                            </span>
+                            {(!canDrag || canDrag(index)) && (
+                                <span className="action-btn move" title="拖拽移動">✋ </span>
+                            )}
+                            {(!canDrag || canDrag(index)) && (
+                                <span
+                                    className="action-btn remove"
+                                    title="移除課程"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (confirm(`確定要移除「${renderName(cellData.topLine)}」嗎？`)) {
+                                            onMove && onMove(index, -1);
+                                        }
+                                    }}
+                                >
+                                    🗑️
+                                </span>
+                            )}
                         </div>
                     </div>
                 )}
@@ -132,21 +144,64 @@ const ScheduleGrid = ({
         if (editable) {
             const isSafe = safeSlots.includes(index);
             const isActiveDragging = safeSlots.length > 0;
+            const isDraggable = !isEmpty && (!canDrag || canDrag(index));
 
             return (
                 <div
-                    className={`cell-wrapper ${!isEmpty ? 'draggable' : 'droppable'} 
+                    className={`cell-wrapper ${isDraggable ? 'draggable' : 'droppable'} 
                         ${hasConflict ? 'cell-conflict' : ''} 
                         ${isActiveDragging && isSafe ? 'cell-safe' : ''}
                         ${isActiveDragging && !isSafe ? 'cell-unsafe' : ''}`}
-                    draggable={!isEmpty}
-                    onDragStart={(e) => !isEmpty && handleDragStart(e, index)}
+                    draggable={isDraggable}
+                    onDragStart={(e) => isDraggable && handleDragStart(e, index)}
                     onDragEnd={handleDragEnd}
                     onDragOver={handleDragOver}
                     onDrop={(e) => handleDrop(e, index)}
                     title={tooltip}
                 >
                     {content}
+                </div>
+            );
+        }
+
+        // --- Diff View Logic ---
+        if (diffMap && diffMap.has(index)) {
+            const diff = diffMap.get(index);
+            // diff = { status: 'added' | 'removed' | 'modified', old: ..., new: ... }
+            let diffClass = '';
+            let diffTooltip = '';
+            let diffContent = content; // Default to current content
+
+            if (diff.status === 'added') {
+                diffClass = 'diff-added'; // Green
+                diffTooltip = '新增排課';
+                // Content is already what's in 'schedule' (if schedule is Target)
+                // If schedule is Base, 'added' wouldn't be in schedule.
+                // We assume 'schedule' passed to grid is the TARGET (New Version).
+                // So 'added' items ARE in schedule.
+            } else if (diff.status === 'removed') {
+                diffClass = 'diff-removed'; // Red
+                diffTooltip = '移除排課: ' + (renderName(diff.old?.topLine) || '');
+                // Removed items are NOT in 'schedule'. We need to render them specially.
+                diffContent = (
+                    <div className="cell-content diff-content-removed">
+                        <div className="cell-main">{renderName(diff.old?.topLine)}</div>
+                        <div className="cell-sub">{renderName(diff.old?.bottomLine)}</div>
+                        <div className="diff-badge">-</div>
+                    </div>
+                );
+            } else if (diff.status === 'modified') {
+                diffClass = 'diff-modified'; // Orange
+                diffTooltip = `變更: ${renderName(diff.old?.topLine)} ➝ ${renderName(diff.new?.topLine)}`;
+                // Content is 'new' (from schedule).
+                // Maybe overlay 'Changed'?
+            }
+
+            return (
+                <div className={`cell-static ${diffClass}`} title={diffTooltip}>
+                    {diffContent}
+                    {diff.status === 'modified' && <div className="diff-badge-mod">✎</div>}
+                    {diff.status === 'added' && <div className="diff-badge-add">+</div>}
                 </div>
             );
         }

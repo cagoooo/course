@@ -382,13 +382,51 @@
     }
 }
 
-/* Print Optimization */
+/* Print Optimization & Advanced Layouts */
 @media print {
+    body * {
+        visibility: hidden;
+    }
+
+    .print-area,
+    .print-area * {
+        visibility: visible;
+    }
+
+    .print-area {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        background: white;
+    }
+
+    .print-page-break {
+        page-break-after: always;
+        break-after: page;
+        padding: 20px;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .print-report-title {
+        text-align: center;
+        margin-bottom: 20px;
+        font-size: 2rem;
+        color: #000;
+        border-bottom: 4px double #000;
+        padding-bottom: 10px;
+    }
+
     .schedule-container {
+        flex: 1;
         box-shadow: none;
         border: 2px solid #000;
         border-radius: 0;
         overflow: visible;
+        width: 100% !important;
+        min-width: 0 !important;
     }
 
     .schedule-header,
@@ -401,10 +439,56 @@
     .time-cell {
         border-right: 1px solid #000;
         background: none !important;
+        min-height: 0;
+        /* Let it shrink/grow */
+    }
+
+    .cell-main {
+        font-size: var(--print-font-size, 14px) !important;
+        color: #000 !important;
     }
 
     .cell-sub {
-        background: none;
-        border: none;
+        font-size: calc(var(--print-font-size, 14px) * 0.8) !important;
+        background: none !important;
+        border: none !important;
+        color: #333 !important;
+        padding: 0 !important;
     }
+
+    .row-break {
+        height: 20px;
+        background: #eee !important;
+    }
+
+    /* Paper size & Orientation @page rules */
+    .print-page-a4.print-layout-portrait {
+        width: 210mm;
+    }
+
+    .print-page-a4.print-layout-landscape {
+        width: 297mm;
+    }
+
+    .print-page-a3.print-layout-portrait {
+        width: 297mm;
+    }
+
+    .print-page-a3.print-layout-landscape {
+        width: 420mm;
+    }
+
+    .print-page-b4.print-layout-portrait {
+        width: 257mm;
+    }
+
+    .print-page-b4.print-layout-landscape {
+        width: 364mm;
+    }
+}
+
+/* @page dynamic injection will be handled via JS if needed, 
+   but we can provide standard classes here */
+@page {
+    margin: 10mm;
 }

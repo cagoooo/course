@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState, useMemo, Fragment } from 'react';
 import './PreScheduleManager.css';
 
 // PreScheduleManager: Allows user to lock specific courses to specific time slots
@@ -19,7 +19,7 @@ function PreScheduleManager({
 
     // --- Conflict Detection Logic ---
     // Map: slotIndex -> [ { teacherId, classId, courseId, className, courseName, teacherName } ]
-    const teacherOccupationMap = React.useMemo(() => {
+    const teacherOccupationMap = useMemo(() => {
         const map = {};
         requirements.forEach(req => {
             if (req.fixedSlots && req.fixedSlots.length > 0 && req.teacherId) {
@@ -289,7 +289,7 @@ function PreScheduleManager({
                             {days.map(d => <div key={d.val} className="grid-header-cell">{d.label}</div>)}
 
                             {periods.map(p => (
-                                <React.Fragment key={p}>
+                                <Fragment key={p}>
                                     <div className="grid-side-cell">第{p}節</div>
                                     {days.map(d => {
                                         const slotIndex = (d.val - 1) * 7 + (p - 1);
@@ -313,7 +313,7 @@ function PreScheduleManager({
                                             </div>
                                         );
                                     })}
-                                </React.Fragment>
+                                </Fragment>
                             ))}
                         </div>
                     </div>

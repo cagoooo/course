@@ -220,3 +220,51 @@
         transform: translateY(0) scale(1);
     }
 }
+
+@media (max-width: 1024px) {
+    .semester-selector-container {
+        margin-left: 0;
+        height: auto;
+        width: 100%;
+        justify-content: center;
+        padding: 0;
+        border: none;
+    }
+
+    .semester-display {
+        flex-direction: column;
+        /* Stack vertically */
+        align-items: center;
+        padding: 4px 12px;
+        /* Very compact padding */
+        gap: 0;
+        /* Minimal gap */
+        width: 100%;
+        max-width: 280px;
+        /* Limit width */
+        justify-content: center;
+        height: auto;
+        box-shadow: none;
+        /* Flatter look for saving space */
+        background: rgba(255, 255, 255, 0.5);
+        /* Semi-transparent */
+    }
+
+    .semester-label {
+        font-size: 0.7rem;
+        margin-bottom: 0;
+        /* Remove margin */
+        line-height: 1.2;
+    }
+
+    .semester-select {
+        font-size: 0.9rem;
+        min-width: auto;
+        width: 100%;
+        text-align: center;
+        text-align-last: center;
+        padding: 4px 20px 4px 4px;
+        /* Less padding */
+        height: auto;
+    }
+}

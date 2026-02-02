@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { firestoreService } from '../services/firestoreService';
 import './SnapshotManager.css';
 
-const SnapshotManager = ({ currentSchedules, currentRequirements, onRestore, onClose }) => {
+const SnapshotManager = ({ currentSchedules, currentRequirements, onRestore, onCompare, onClose }) => {
     const [snapshots, setSnapshots] = useState([]);
     const [newSnapshotName, setNewSnapshotName] = useState('');
     const [loading, setLoading] = useState(false);
@@ -87,6 +87,18 @@ const SnapshotManager = ({ currentSchedules, currentRequirements, onRestore, onC
                                     <span className="snapshot-date">{new Date(s.createdAt).toLocaleString()}</span>
                                 </div>
                                 <div className="snapshot-actions">
+                                    <button
+                                        className="btn-text btn-small"
+                                        style={{ marginRight: '8px', color: '#6366f1' }}
+                                        onClick={() => {
+                                            if (onCompare) {
+                                                onCompare(s);
+                                                onClose();
+                                            }
+                                        }}
+                                    >
+                                        🔍 比對
+                                    </button>
                                     <button
                                         className="restore-btn"
                                         onClick={() => {

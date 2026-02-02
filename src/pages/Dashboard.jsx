@@ -2,10 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { firestoreService } from '../services/firestoreService';
 import { useSemester } from '../contexts/SemesterContext';
+import { useAuth } from '../contexts/AuthContext';
 import './Dashboard.css';
 
 function Dashboard() {
     const { currentSemesterId, currentSemesterName, loading: semesterLoading } = useSemester();
+    const { isAdmin } = useAuth();
     const [stats, setStats] = useState({ teachers: 0, classes: 0 });
 
     useEffect(() => {
@@ -50,17 +52,21 @@ function Dashboard() {
                     <p>依年級班級查詢該班每週課程內容，支援班級課表批量導出。</p>
                 </Link>
 
-                <Link to="/auto" className="action-card card-auto">
-                    <div className="icon">🤖</div>
-                    <h3>AI 自動排課系統</h3>
-                    <p>支援 AI 演算法自動排課、衝突檢核與配課權重微調。</p>
-                </Link>
+                {isAdmin && (
+                    <>
+                        <Link to="/auto" className="action-card card-auto">
+                            <div className="icon">🤖</div>
+                            <h3>AI 自動排課系統</h3>
+                            <p>支援 AI 演算法自動排課、衝突檢核與配課權重微調。</p>
+                        </Link>
 
-                <Link to="/auto" className="action-card card-admin">
-                    <div className="icon">⚙️</div>
-                    <h3>管理與維護</h3>
-                    <p>管理教師基本資料、專科教室綁定與科目配課節數。</p>
-                </Link>
+                        <Link to="/auto" className="action-card card-admin">
+                            <div className="icon">⚙️</div>
+                            <h3>管理與維護</h3>
+                            <p>管理教師基本資料、專科教室綁定與科目配課節數。</p>
+                        </Link>
+                    </>
+                )}
             </div>
         </div>
     );

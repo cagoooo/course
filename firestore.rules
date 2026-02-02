@@ -1,34 +1,74 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow public read/write access to STC data collections during development
-    match /semesters/{semesterId} {
-      allow read, write: if true;
-      
-      match /teachers/{teacherId} {
-        allow read, write: if true;
-      }
-      match /classes/{classId} {
-        allow read, write: if true;
-      }
-      match /courses/{courseId} {
-        allow read, write: if true;
-      }
-      match /schedules/{scheduleId} {
-        allow read, write: if true;
-      }
-      match /classrooms/{classroomId} {
-        allow read, write: if true;
-      }
-      match /requirements/{requirementId} {
-        allow read, write: if true;
-      }
-      match /snapshots/{snapshotId} {
-        allow read, write: if true;
-      }
+    
+    // --- Helper Functions ---
+    
+    // Check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Check if user is Admin
+    // PRIORITIZE: request.auth.token.role (Custom Claims)
+    // FALLBACK: Firestore 'requestedRole' or 'role' (During migration/setup)
+    function isAdmin() {
+      return isAuthenticated() && (
+        (request.auth.token.keys().hasAny(['role']) && request.auth.token.role == 'admin') ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == 'admin' || 
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('requestedRole', '') == 'admin'))
+      );
     }
     
-    // Default safe rule: deny everything else (fallback)
+    // Check if user is Editor
+    function isEditor() {
+       return isAuthenticated() && (
+        isAdmin() || 
+        (request.auth.token.keys().hasAny(['role']) && request.auth.token.role == 'editor') ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == 'editor')
+      );
+    }
+
+    // --- Collections ---
+
+    // Semesters & School Data
+    // Policy: Read All, Admin Write (Strict Claim Enforcement)
+    match /semesters/{semesterId} {
+      allow read: if true;
+      allow write: if isAdmin();
+      
+      // Protect all subcollections (teachers, classes, courses, schedules, etc.)
+      match /{allPaths=**} {
+        allow read: if true;
+        allow write: if isAdmin();
+      }
+    }
+
+    // Users Collection
+    // Policy: 
+    // - Self Read/Update (Limited)
+    // - Admin CRUD
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      
+      // Policy: Users can CREATE their profile but only as 'viewer'
+      allow create: if isAuthenticated() && request.auth.uid == userId 
+                    && request.resource.data.get('role', 'viewer') == 'viewer'
+                    && request.resource.data.get('requestedRole', 'viewer') == 'viewer';
+      
+      // Policy: Only Admin can update ROLES. Users can only update non-role info.
+      allow update: if isAdmin() || (
+        isAuthenticated() && request.auth.uid == userId &&
+        request.resource.data.get('role', 'viewer') == resource.data.get('role', 'viewer') &&
+        request.resource.data.get('requestedRole', 'viewer') == resource.data.get('requestedRole', 'viewer')
+      );
+      
+      allow delete: if isAdmin();
+    }
+
+    // Default Deny
     match /{document=**} {
       allow read, write: if false;
     }

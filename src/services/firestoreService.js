@@ -1,5 +1,6 @@
 import { db } from '../firebase';
 import { collection, getDocs, getDoc, doc, setDoc, writeBatch, deleteDoc, query, where } from 'firebase/firestore';
+import { OfflineService } from './db';
 
 const SEMESTER_ID = '110-1'; // Default for now, should be dynamic later
 
@@ -109,24 +110,45 @@ export const firestoreService = {
 
     // Get Teachers for a semester
     async getTeachers(semesterId = SEMESTER_ID) {
-        const snapshot = await getDocs(collection(db, `semesters/${semesterId}/teachers`));
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a, b) => Number(a.id) - Number(b.id));
+        try {
+            const snapshot = await getDocs(collection(db, `semesters/${semesterId}/teachers`));
+            const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a, b) => Number(a.id) - Number(b.id));
+            OfflineService.saveTeachers(data);
+            return data;
+        } catch (error) {
+            console.warn("Firestore fetch failed, checking offline DB...", error);
+            return await OfflineService.getTeachers();
+        }
     },
 
     // Get Classes for a semester
     async getClasses(semesterId = SEMESTER_ID) {
-        const snapshot = await getDocs(collection(db, `semesters/${semesterId}/classes`));
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a, b) => {
-            // Sort by Grade then ClassNum
-            if (a.grade !== b.grade) return a.grade - b.grade;
-            return a.classNum - b.classNum;
-        });
+        try {
+            const snapshot = await getDocs(collection(db, `semesters/${semesterId}/classes`));
+            const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a, b) => {
+                // Sort by Grade then ClassNum
+                if (a.grade !== b.grade) return a.grade - b.grade;
+                return a.classNum - b.classNum;
+            });
+            OfflineService.saveClasses(data);
+            return data;
+        } catch (error) {
+            console.warn("Firestore fetch failed, checking offline DB...", error);
+            return await OfflineService.getClasses();
+        }
     },
 
     // Get Courses for a semester
     async getCourses(semesterId = SEMESTER_ID) {
-        const snapshot = await getDocs(collection(db, `semesters/${semesterId}/courses`));
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        try {
+            const snapshot = await getDocs(collection(db, `semesters/${semesterId}/courses`));
+            const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            OfflineService.saveCourses(data);
+            return data;
+        } catch (error) {
+            console.warn("Firestore fetch failed, checking offline DB...", error);
+            return await OfflineService.getCourses();
+        }
     },
 
     // Get Schedule for a specific class
@@ -186,6 +208,14 @@ export const firestoreService = {
         await batch.commit();
     },
 
+    async saveClassSchedule(classId, periods, semesterId = SEMESTER_ID) {
+        const ref = doc(db, `semesters/${semesterId}/schedules`, classId);
+        await setDoc(ref, {
+            classId,
+            periods
+        }, { merge: true });
+    },
+
     // --- CRUD Operations ---
     async addTeacher(teacher, semesterId = SEMESTER_ID) {
         const newRef = doc(collection(db, `semesters/${semesterId}/teachers`));
@@ -213,8 +243,15 @@ export const firestoreService = {
 
     // Get Classrooms for a semester
     async getClassrooms(semesterId = SEMESTER_ID) {
-        const snapshot = await getDocs(collection(db, `semesters/${semesterId}/classrooms`));
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        try {
+            const snapshot = await getDocs(collection(db, `semesters/${semesterId}/classrooms`));
+            const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            OfflineService.saveClassrooms(data);
+            return data;
+        } catch (error) {
+            console.warn("Firestore fetch failed, checking offline DB...", error);
+            return await OfflineService.getClassrooms();
+        }
     },
 
     async addClassroom(classroom, semesterId = SEMESTER_ID) {

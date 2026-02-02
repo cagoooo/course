@@ -1,13 +1,15 @@
-# SMES AI 智慧排課系統 (v2.1.1)
+# SMES AI 智慧排課系統 (v2.1.3)
 
-![Roadmap 2.1](https://img.shields.io/badge/Roadmap-2.1.0-blueviolet?style=for-the-badge&logo=react)
+![Roadmap 2.1](https://img.shields.io/badge/Roadmap-2.1.3-blueviolet?style=for-the-badge&logo=react)
 ![Firebase](https://img.shields.io/badge/Firebase-Auth%20%7C%20Firestore-orange?style=for-the-badge&logo=firebase)
 
 本系統是針對「石門國民小學」開發的智慧化自動排課與管理平台，旨在取代傳統的桌機版 STC 系統，提供雲端同步、AI 衝突解決與現代化的使用者體驗。
 
-## ✨ 最新更新 (v2.1.1)
-*   **介面優化**：優化「師資配課」面板的按鈕排版，解決新增按鈕在小螢幕或特定寬度下被擠壓至右側的問題，提升操作可見度。
-*   **功能修復**：修復教師、科目、教室的「批次新增」功能，解決資料格式不相容導致的錯誤，現在可流暢地進行大量資料匯入。
+## ✨ 最新更新 (v2.1.3)
+*   **PWA 全面支援**：支援離線查看課表，並可將系統安裝至手機桌面（Add to Home Screen）。
+*   **離線資料同步**：實作 IndexedDB 本地資料庫，在網路不穩時仍能讀取教師與班級設定。
+*   **單元測試優階**：引入 Vitest 測試框架，確保核心排課演算與衝突檢測邏輯的穩定性。
+*   **效能優化**：優化 React Hook 調用與 React 19 相容性，解決開發環境下的快取衝突問題。
 
 ## ✨ 核心特色 (Roadmap 2.0)
 
@@ -63,8 +65,8 @@
 
 ---
 
-## 📅 未來展望 (Roadmap 3.0)
-*   [ ] PWA 離線支援與桌面啟動圖示。
+## 📅 未來展望 (Roadmap 3.0 - 4.0)
+*   [ ] 權限分級管理 (RBAC)。
 *   [ ] 多語系語系檔 (i18n) 擴充。
 *   [ ] 視覺化版本差異對比 (Visual Diff)。
 

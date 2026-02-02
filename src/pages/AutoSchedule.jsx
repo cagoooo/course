@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { firestoreService } from '../services/firestoreService';
 import { useSemester } from '../contexts/SemesterContext';
 import ScheduleGrid from '../components/ScheduleGrid';
+import PublicSchedule from './PublicSchedule';
+import PrintSettingsModal from '../components/PrintSettingsModal';
 import SchedulerWorker from '../workers/scheduler.worker.js?worker';
 import DataManagementPanel from '../components/DataManagementPanel';
 import TeacherWorkloadPanel from '../components/TeacherWorkloadPanel';
@@ -10,6 +12,7 @@ import ConflictResolver from '../components/ConflictResolver';
 import { isSlotAllowed } from '../algorithms/types.js';
 import { runDiagnostics } from '../algorithms/Diagnostics';
 import SnapshotManager from '../components/SnapshotManager';
+import { DiffService } from '../services/DiffService'; // Import Diff Service
 import './AutoSchedule_ProgressBar.css';
 
 
@@ -23,6 +26,12 @@ function AutoSchedule() {
     const [showQRCode, setShowQRCode] = useState(false);
     const [showSnapshotManager, setShowSnapshotManager] = useState(false);
 
+    // Diff Mode State
+    const [diffMode, setDiffMode] = useState(false);
+    const [diffMap, setDiffMap] = useState(null); // Map<index, diffStatus>
+    const [comparisonName, setComparisonName] = useState('');
+    const [originalBestSolution, setOriginalBestSolution] = useState(null); // Backup logic
+
     // Smart Fill State
     const [smartFillModal, setSmartFillModal] = useState({ show: false, slotIndex: null, candidates: [] });
 
@@ -35,8 +44,18 @@ function AutoSchedule() {
         setDiagnosticResults(results);
         setShowDiagnostics(true);
     };
+    const [printSettings, setPrintSettings] = useState({
+        fontSize: 14,
+        paperSize: 'A4',
+        layout: 'portrait',
+        showTeacherName: true,
+        showCourseName: true,
+        showClassName: true,
+        titleTemplate: '' // Will be set dynamically
+    });
+    const [showPrintModal, setShowPrintModal] = useState(false);
+    const [printType, setPrintType] = useState('class'); // 'class' or 'teacher'
     const [isBatchPrinting, setIsBatchPrinting] = useState(false);
-    const [printType, setPrintType] = useState('class'); // 'class' | 'teacher'
 
     const [classes, setClasses] = useState([]);
     const [courses, setCourses] = useState([]);
@@ -158,6 +177,24 @@ function AutoSchedule() {
                 });
                 setRequirements(reqs);
             }
+            // Convert existing schedules into bestSolution (Genes) format
+            const initialBestSolution = [];
+            semSchedules.forEach(sch => {
+                if (sch.periods) {
+                    sch.periods.forEach((p, idx) => {
+                        if (p && p.courseId) {
+                            initialBestSolution.push({
+                                classId: sch.id,
+                                courseId: p.courseId,
+                                teacherId: p.teacherId || null,
+                                periodIndex: idx
+                            });
+                        }
+                    });
+                }
+            });
+            setBestSolution(initialBestSolution);
+
             setStatus('idle');
             // Mark initial load complete so auto-save kicks in for future changes
             isInitialLoad.current = false;
@@ -734,8 +771,106 @@ function AutoSchedule() {
         setBestSolution([...otherGenes, ...newMyGenes]);
     };
 
+    // --- Diff / Compare Logic ---
+    const handleCompareSnapshot = (snapshot) => {
+        if (!bestSolution || bestSolution.length === 0) {
+            alert('目前沒有排課內容可供比對');
+            return;
+        }
+
+        // 1. Calculate Diff (Current vs Snapshot)
+        // Current is Base, Snapshot is Target.
+        // We want to see "If I restore this snapshot, what changes?"
+        // So Diff = Snapshot (Target) - Current (Base).
+
+        // Wait, bestSolution format: Array of Gene { classId, teacherId, courseId, periodIndex }
+        // Snapshot format: Array of Schedule Objects { classId, periods: [...] }
+        // We need to normalize formats to use DiffService.
+
+        // Convert bestSolution (Genes) to standard Schedule Objects for DiffService
+        // But DiffService expects flattened items usually.
+        // Let's adapt DiffService inputs.
+
+        // Normalize Current (Genes) -> Flat Items
+        const currentItems = bestSolution.map(g => ({
+            teacherId: g.teacherId,
+            weekday: Math.floor(g.periodIndex / 7),
+            period: g.periodIndex % 7,
+            classId: g.classId,
+            courseId: g.courseId,
+            topLine: courses.find(c => c.id === g.courseId), // Enrich for Display
+            bottomLine: classes.find(c => c.id === g.classId)
+        }));
+
+        // Normalize Snapshot (Schedule Docs) -> Flat Items
+        const snapshotItems = [];
+        const sourceSchedules = snapshot.schedules || snapshot.data || [];
+
+        sourceSchedules.forEach(sch => {
+            if (!sch.periods) return;
+            sch.periods.forEach((p, idx) => {
+                if (p && p.courseId) {
+                    snapshotItems.push({
+                        teacherId: p.teacherId,
+                        weekday: Math.floor(idx / 7),
+                        period: idx % 7,
+                        classId: sch.classId,
+                        courseId: p.courseId,
+                        topLine: courses.find(c => c.id === p.courseId),
+                        bottomLine: classes.find(c => c.id === sch.classId)
+                    });
+                }
+            });
+        });
+
+        const diffResult = DiffService.compare(currentItems, snapshotItems);
+
+        // Convert Diff Result to Grid Map
+        // Key: Teacher-based or Class-based?
+        // AutoSchedule view depends on 'activeTab'.
+        // If 'scheduler', it usually shows ONE class or ALL classes in tabs?
+        // Wait, AutoSchedule shows ONE class via `viewClassId`.
+
+        const map = new Map();
+
+        // Helper to add to map using global class-aware keys
+        const addToMap = (item, status, oldItem, newItem) => {
+            if (!item || !item.classId) return;
+            const idx = item.weekday * 7 + item.period;
+            // Key: classId_index
+            map.set(`${item.classId}_${idx}`, { status, old: oldItem, new: newItem });
+        };
+
+        diffResult.added.forEach(item => addToMap(item, 'added', null, item));
+        diffResult.removed.forEach(item => addToMap(item, 'removed', item, null));
+        diffResult.modified.forEach(change => addToMap(change.to, 'modified', change.from, change.to));
+
+        setDiffMap(map);
+        setDiffMode(true);
+        setComparisonName(snapshot.name);
+
+        // Backup current solution to restore later?
+        // Actually, we are just overlaying the Diff Map on the CURRENT grid.
+        // We don't need to change `bestSolution` data itself, just the visualization.
+        // But wait, if we want to show "Added", and "Added" means it is in Snapshot but NOT in Current.
+        // If we render `bestSolution` (Current), the "Added" slot is EMPTY in Current.
+        // So the Grid renders Empty.
+        // But our `ScheduleGrid` logic says: `if (diffMap.has(index)) override`.
+        // So yes, ScheduleGrid will receive the 'added' content from the Diff Map.
+
+        alert(`已開啟比對模式：正在比較「目前進度」與「${snapshot.name}」\n(切換左側班級可查看不同班級的異動)`);
+    };
+
+    const handleExitDiffMode = () => {
+        setDiffMode(false);
+        setDiffMap(null);
+        setComparisonName('');
+    };
+
+
     // --- Smart Fill Logic ---
     const handleEmptyCellClick = (slotIndex) => {
+        if (diffMode) return; // Disable editing in diff mode
         if (!viewClassId || !status || (status !== 'idle' && status !== 'stopped')) {
             if (status === 'running') alert("請先停止演算法再進行手動編輯。");
             return;
@@ -824,17 +959,48 @@ function AutoSchedule() {
 
     const handleBatchPrint = (type) => {
         setPrintType(type);
+        setPrintSettings(prev => ({
+            ...prev,
+            titleTemplate: type === 'class' ? '{grade}年{name}班 課表' : '{name} 老師課表'
+        }));
+        setShowPrintModal(true);
+    };
+
+    const handleCopyShareLink = () => {
+        if (!viewClassId) return;
+        const baseUrl = window.location.origin;
+        const shareUrl = `${baseUrl}/public/class/${viewClassId}`;
+
+        navigator.clipboard.writeText(shareUrl).then(() => {
+            alert("已複製公開課表連結到剪貼簿！\n您可以將此連結傳送給老師。");
+        }).catch(err => {
+            console.error('Failed to copy: ', err);
+            alert(`連結為: ${shareUrl}\n(自動複製失敗，請手動複製)`);
+        });
+    };
+
+    const executePrint = (settings) => {
+        setPrintSettings(settings);
+        setShowPrintModal(false);
         setIsBatchPrinting(true);
         setTimeout(() => {
             window.print();
             setIsBatchPrinting(false);
-        }, 500);
+        }, 800);
+    };
+
+    const formatPrintTitle = (template, item) => {
+        if (!template) return '';
+        return template
+            .replace('{grade}', item.grade || '')
+            .replace('{name}', item.name || item.classNum || ''); // Use classNum for classes, name for teachers
     };
 
     const getFullGridForClass = (classId) => {
         if (!bestSolution || bestSolution.length === 0) return Array(35).fill(null);
         const myGenes = bestSolution.filter(g => g.classId === classId);
         const grid = Array(35).fill(null);
+
         myGenes.forEach(g => {
             if (g.periodIndex >= 0 && g.periodIndex < 35) {
                 const crs = courses.find(c => c.id === g.courseId);
@@ -849,15 +1015,15 @@ function AutoSchedule() {
     };
 
     const getFullGridForTeacher = (teacherId) => {
-        if (!bestSolution || bestSolution.length === 0) return Array(35).fill(null);
         const grid = Array(35).fill(null);
+        if (!bestSolution || bestSolution.length === 0) return grid;
         bestSolution.forEach(g => {
             if (g.teacherId === teacherId && g.periodIndex >= 0 && g.periodIndex < 35) {
                 const crs = courses.find(c => c.id === g.courseId);
                 const cls = classes.find(c => c.id === g.classId);
                 grid[g.periodIndex] = {
                     topLine: crs ? crs.name : `ID:${g.courseId}`,
-                    bottomLine: cls ? `${cls.grade}-${cls.name}` : ''
+                    bottomLine: cls ? `${cls.grade}-${cls.classNum}班` : ''
                 };
             }
         });
@@ -1183,8 +1349,25 @@ function AutoSchedule() {
                     <div className="preview-section">
                         <div className="preview-header">
                             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                <h3>即時預覽 (可拖拉調整)</h3>
-                                {viewClassId && (
+                                <h3>{diffMode ? `🔍 比對模式: vs ${comparisonName}` : '即時預覽 (可拖拉調整)'}</h3>
+                                {diffMode && (
+                                    <button
+                                        className="btn btn-secondary btn-sm"
+                                        onClick={handleExitDiffMode}
+                                        style={{ background: '#6366f1', color: 'white', border: 'none' }}
+                                    >
+                                        退出比對
+                                    </button>
+                                )}
+                                <button
+                                    className="btn btn-outline btn-sm"
+                                    onClick={handleCopyShareLink}
+                                    title="複製公開分享連結"
+                                    style={{ padding: '4px 8px', fontSize: '0.8rem' }}
+                                >
+                                    🔗 分享
+                                </button>
+                                {viewClassId && !diffMode && (
                                     <button
                                         className="btn btn-secondary btn-sm"
                                         onClick={() => setShowQRCode(true)}
@@ -1224,7 +1407,7 @@ function AutoSchedule() {
                                     <ScheduleGrid
                                         schedule={classScheduleDisplay}
                                         type="class"
-                                        editable={true}
+                                        editable={!diffMode}
                                         onMove={handleMoveCourse}
                                         grade={classes.find(c => c.id === viewClassId)?.grade}
                                         conflicts={globalConflicts[viewClassId]}
@@ -1232,6 +1415,12 @@ function AutoSchedule() {
                                         onDragEnd={() => setDraggingIndex(null)}
                                         safeSlots={safeSlots}
                                         onCellClick={handleEmptyCellClick}
+                                        // Filter Diff Map for current class (Keys: classId_index -> index)
+                                        diffMap={diffMode && diffMap ? new Map(
+                                            Array.from(diffMap.entries())
+                                                .filter(([k]) => k.startsWith(`${viewClassId}_`))
+                                                .map(([k, v]) => [parseInt(k.split('_')[1]), v])
+                                        ) : null}
                                     />
                                 </>
                             ) : (
@@ -1460,24 +1649,51 @@ function AutoSchedule() {
             )}
             {/* Batch Print Area (Hidden in browser, visible in print) */}
             {isBatchPrinting && (
-                <div className="print-area">
+                <div
+                    className={`print-area print-page-${printSettings.paperSize.toLowerCase()} print-layout-${printSettings.layout}`}
+                    style={{ '--print-font-size': `${printSettings.fontSize}px` }}
+                >
                     {printType === 'class' ? (
                         classes.map(c => (
                             <div key={c.id} className="print-page-break">
-                                <h2 style={{ textAlign: 'center' }}>{c.grade}年{c.name}班 課表</h2>
-                                <ScheduleGrid schedule={getFullGridForClass(c.id)} type="class" editable={false} />
+                                <h1 className="print-report-title">{formatPrintTitle(printSettings.titleTemplate, c)}</h1>
+                                <ScheduleGrid
+                                    schedule={getFullGridForClass(c.id).map(p => ({
+                                        ...p,
+                                        topLine: printSettings.showCourseName ? p?.topLine : '',
+                                        bottomLine: printSettings.showTeacherName ? p?.bottomLine : ''
+                                    }))}
+                                    type="class"
+                                    editable={false}
+                                />
                             </div>
                         ))
                     ) : (
                         teachers.filter(t => t.id !== 'none').map(t => (
                             <div key={t.id} className="print-page-break">
-                                <h2 style={{ textAlign: 'center' }}>{t.name} 老師課表</h2>
-                                <ScheduleGrid schedule={getFullGridForTeacher(t.id)} type="teacher" editable={false} />
+                                <h1 className="print-report-title">{formatPrintTitle(printSettings.titleTemplate, t)}</h1>
+                                <ScheduleGrid
+                                    schedule={getFullGridForTeacher(t.id).map(p => ({
+                                        ...p,
+                                        topLine: printSettings.showCourseName ? p?.topLine : '',
+                                        bottomLine: printSettings.showClassName ? p?.bottomLine : ''
+                                    }))}
+                                    type="teacher"
+                                    editable={false}
+                                />
                             </div>
                         ))
                     )}
                 </div>
             )}
+
+            <PrintSettingsModal
+                show={showPrintModal}
+                type={printType}
+                initialSettings={printSettings}
+                onClose={() => setShowPrintModal(false)}
+                onConfirm={executePrint}
+            />
 
             {/* Snapshot Manager Modal */}
             {showSnapshotManager && (
@@ -1522,6 +1738,7 @@ function AutoSchedule() {
                             alert(`已載入快照「${snapshot.name}」，您可以預覽並點擊「儲存課表」正式套用。`);
                         }
                     }}
+                    onCompare={handleCompareSnapshot}
                     onClose={() => setShowSnapshotManager(false)}
                 />
             )}

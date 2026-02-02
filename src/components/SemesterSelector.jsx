@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { useSemester } from '../contexts/SemesterContext';
+import { useAuth } from '../contexts/AuthContext';
 import './SemesterSelector.css';
 
 function SemesterSelector() {
     const { semesters, currentSemesterId, currentSemesterName, changeSemester, createSemester, loading } = useSemester();
+    const { isAdmin } = useAuth(); // Get admin status
 
     // Modal state
     const [showModal, setShowModal] = useState(false);
@@ -15,6 +17,7 @@ function SemesterSelector() {
     if (loading) return <div className="semester-selector-loading">載入中...</div>;
 
     const handleCreate = async (e) => {
+        // ... existing handleCreate logic ...
         e.preventDefault();
         if (!newSemId || !newSemName) {
             alert('請填寫完整資訊');
@@ -61,13 +64,17 @@ function SemesterSelector() {
                             {s.name} ({s.id})
                         </option>
                     ))}
-                    <option disabled>──────────</option>
-                    <option value="NEW">➕ 建立新學期...</option>
+                    {isAdmin && (
+                        <>
+                            <option disabled>──────────</option>
+                            <option value="NEW">➕ 建立新學期...</option>
+                        </>
+                    )}
                 </select>
             </div>
 
             {/* Create Modal */}
-            {showModal && (
+            {showModal && isAdmin && (
                 <div className="semester-modal-overlay">
                     <div className="semester-modal">
                         <h3>建立新學期</h3>
