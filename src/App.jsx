@@ -57,7 +57,7 @@ function App() {
     return (
         <AuthProvider>
             <SemesterProvider>
-                <Router>
+                <Router basename="/course">
                     <div className="app-container">
                         <Navbar />
 
