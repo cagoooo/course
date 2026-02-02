@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { db } from '../firebase';
-import { collection, getDocs, doc, updateDoc, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 import './UserManagement.css';
 
@@ -45,6 +45,29 @@ function UserManagement() {
         } catch (err) {
             console.error("Update role error:", err);
             alert('更新失敗，請檢查權限。');
+        } finally {
+            setUpdatingUid(null);
+        }
+    };
+
+    const handleDeleteUser = async (uid, currentRole) => {
+        if (currentRole === 'admin') {
+            alert('❌ 為了系統安全，禁止直接刪除「管理員」帳號。\n\n如需移除權限，請先將其降級為「檢視者」或「編輯者」。');
+            return;
+        }
+
+        if (!window.confirm('⚠️ 警告：確定要刪除此帳號嗎？\n\n這將移除該用戶的所有權限與資料。該用戶下次登入時將會被視為全新訪客 (僅剩檢視權限)。')) {
+            return;
+        }
+
+        setUpdatingUid(uid);
+        try {
+            await deleteDoc(doc(db, 'users', uid));
+            setUsers(prev => prev.filter(u => u.uid !== uid));
+            alert('✅ 用戶已刪除');
+        } catch (err) {
+            console.error("Delete user error:", err);
+            alert('刪除失敗，請稍後再試。');
         } finally {
             setUpdatingUid(null);
         }
@@ -101,6 +124,15 @@ function UserManagement() {
                                                 <option value="editor">設為 編輯者</option>
                                                 <option value="admin">設為 管理員</option>
                                             </select>
+
+                                            <button
+                                                className="btn-delete"
+                                                onClick={() => handleDeleteUser(user.uid, user.role)}
+                                                disabled={user.role === 'admin' || updatingUid === user.uid}
+                                                title={user.role === 'admin' ? "無法刪除管理員" : "刪除帳號"}
+                                            >
+                                                🗑️
+                                            </button>
                                         </div>
                                     </td>
                                 </tr>
