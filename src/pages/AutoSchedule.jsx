@@ -1446,6 +1446,12 @@ function AutoSchedule() {
                             teachers={teachers}
                             courses={courses}
                             classrooms={classrooms}
+                            onNavigateToClass={(classId) => {
+                                setViewClassId(classId);
+                                setTimeout(() => {
+                                    document.querySelector('.schedule-view')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                }, 100);
+                            }}
                         />
 
                         {/* [Phase 2.1] Excel Import/Export */}

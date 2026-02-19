@@ -115,6 +115,34 @@
     border-radius: 8px;
     font-size: 0.88rem;
     gap: 12px;
+    transition: all 0.2s;
+}
+
+.penalty-item.clickable {
+    cursor: pointer;
+}
+
+.penalty-item.clickable:hover {
+    transform: translateX(4px);
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.15);
+}
+
+.jump-badge {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 2px 8px;
+    background: linear-gradient(135deg, #6366f1, #818cf8);
+    color: white;
+    font-size: 0.72rem;
+    font-weight: 600;
+    border-radius: 12px;
+    vertical-align: middle;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.penalty-item.clickable:hover .jump-badge {
+    opacity: 1;
 }
 
 .penalty-desc {

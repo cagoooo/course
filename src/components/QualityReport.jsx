@@ -6,7 +6,7 @@ import './QualityReport.css';
  * QualityReport: 排課品質分析面板
  * 顯示 Top N 扣分項目、教師疲勞警告、整體摘要
  */
-export default function QualityReport({ solution, teachers, courses, classrooms }) {
+export default function QualityReport({ solution, teachers, courses, classrooms, onNavigateToClass }) {
     const [report, setReport] = useState(null);
     const [showAll, setShowAll] = useState(false);
 
@@ -72,8 +72,16 @@ export default function QualityReport({ solution, teachers, courses, classrooms 
                             <h4>🏷️ 扣分明細（依嚴重程度排序）</h4>
                             <ul className="penalty-list">
                                 {displayPenalties.map((p, i) => (
-                                    <li key={i} className={`penalty-item severity-${p.severity}`}>
-                                        <span className="penalty-desc">{p.description}</span>
+                                    <li key={i} className={`penalty-item severity-${p.severity} ${p.classId && onNavigateToClass ? 'clickable' : ''}`}
+                                        onClick={() => p.classId && onNavigateToClass?.(p.classId)}
+                                        title={p.classId ? `點擊跳轉至 ${p.classId} 課表` : ''}
+                                    >
+                                        <span className="penalty-desc">
+                                            {p.description}
+                                            {p.classId && onNavigateToClass && (
+                                                <span className="jump-badge">👉 查看課表</span>
+                                            )}
+                                        </span>
                                         <span className="penalty-score">-{p.penalty}</span>
                                     </li>
                                 ))}
