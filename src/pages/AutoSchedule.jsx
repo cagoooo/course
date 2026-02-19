@@ -13,6 +13,7 @@ import { isSlotAllowed } from '../algorithms/types.js';
 import { runDiagnostics } from '../algorithms/Diagnostics';
 import SnapshotManager from '../components/SnapshotManager';
 import QualityReport from '../components/QualityReport';
+import ExcelPanel from '../components/ExcelPanel';
 import { DiffService } from '../services/DiffService'; // Import Diff Service
 import './AutoSchedule_ProgressBar.css';
 
@@ -1442,6 +1443,15 @@ function AutoSchedule() {
                         {/* [Phase 1.1] Quality Report */}
                         <QualityReport
                             solution={bestSolution}
+                            teachers={teachers}
+                            courses={courses}
+                            classrooms={classrooms}
+                        />
+
+                        {/* [Phase 2.1] Excel Import/Export */}
+                        <ExcelPanel
+                            bestSolution={bestSolution}
+                            classes={classes}
                             teachers={teachers}
                             courses={courses}
                             classrooms={classrooms}
