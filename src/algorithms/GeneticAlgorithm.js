@@ -259,256 +259,252 @@ export class GeneticAlgorithm {
     }
 
     /**
-     * [GA v3.0] Hybrid Mutation: 30% Teacher Repair + 20% Math Repair + 25% Directed + 25% Random
+     * [GA v3.1] Hybrid Mutation:
+     * 30% Teacher Repair (Global)
+     * 15% Math Repair (Class)
+     * 15% Chinese Repair (Class)
+     * 20% Directed (Class)
+     * 20% Random (Class)
      */
     mutate(chromosome) {
-        /**
-         * [GA v3.1] Hybrid Mutation:
-         * 30% Teacher Repair (Global)
-         * 15% Math Repair (Class)
-         * 15% Chinese Repair (Class)
-         * 20% Directed (Class)
-         * 20% Random (Class)
-         */
-        mutate(chromosome) {
-            if (Math.random() >= this.mutationRate) return;
+        if (Math.random() >= this.mutationRate) return;
 
-            const roll = Math.random();
+        const roll = Math.random();
 
-            // 1. Teacher Conflict Repair (Global) - Highest Priority
-            if (roll < 0.3) {
-                if (this._repairTeacherConflicts(chromosome)) return;
-            }
-
-            // Per-class mutations
-            const classIds = [...new Set(chromosome.map(g => g.classId))];
-            const targetClassId = classIds[Math.floor(Math.random() * classIds.length)];
-            const classGenes = chromosome.filter(g => g.classId === targetClassId && !g.locked);
-            if (classGenes.length < 2) return;
-
-            // renormalized roll for remaining 70%
-            const localRoll = (roll - 0.3) / 0.7; // 0.0 to 1.0
-
-            if (localRoll < 0.25) { // ~17.5% total (Math)
-                if (!this._repairMathViolations(classGenes)) this._directedMutate(classGenes);
-            } else if (localRoll < 0.5) { // ~17.5% total (Chinese)
-                if (!this._repairChineseViolations(classGenes)) this._directedMutate(classGenes);
-            } else if (localRoll < 0.8) { // ~21% total (Directed)
-                this._directedMutate(classGenes);
-            } else { // ~20% total (Random)
-                this._randomSwap(classGenes);
-            }
+        // 1. Teacher Conflict Repair (Global) - Highest Priority
+        if (roll < 0.3) {
+            if (this._repairTeacherConflicts(chromosome)) return;
         }
 
-        /** [Teacher Repair] Fix teacher double-bookings across all classes. */
-        _repairTeacherConflicts(chromosome) {
-            // Build teacher → period → genes map
-            const teacherSlots = {};
-            chromosome.forEach(g => {
-                if (!g.teacherId) return;
-                const key = `${g.teacherId}_${g.periodIndex}`;
-                if (!teacherSlots[key]) teacherSlots[key] = [];
-                teacherSlots[key].push(g);
-            });
+        // Per-class mutations
+        const classIds = [...new Set(chromosome.map(g => g.classId))];
+        const targetClassId = classIds[Math.floor(Math.random() * classIds.length)];
+        const classGenes = chromosome.filter(g => g.classId === targetClassId && !g.locked);
+        if (classGenes.length < 2) return;
 
-            // Find conflicts
-            for (const [, genes] of Object.entries(teacherSlots)) {
-                if (genes.length <= 1) continue;
+        // renormalized roll for remaining 70%
+        const localRoll = (roll - 0.3) / 0.7; // 0.0 to 1.0
 
-                // Found a conflict! Move one gene to a free slot in its class
-                const moveGene = genes.find(g => !g.locked) || genes[0];
-                if (moveGene.locked) continue;
+        if (localRoll < 0.25) { // ~17.5% total (Math)
+            if (!this._repairMathViolations(classGenes)) this._directedMutate(classGenes);
+        } else if (localRoll < 0.5) { // ~17.5% total (Chinese)
+            if (!this._repairChineseViolations(classGenes)) this._directedMutate(classGenes);
+        } else if (localRoll < 0.8) { // ~21% total (Directed)
+            this._directedMutate(classGenes);
+        } else { // ~20% total (Random)
+            this._randomSwap(classGenes);
+        }
+    }
 
-                // Find all occupied slots in this class
-                const classGenes = chromosome.filter(g => g.classId === moveGene.classId);
-                const occupiedSlots = new Set(classGenes.map(g => g.periodIndex));
+    /** [Teacher Repair] Fix teacher double-bookings across all classes. */
+    _repairTeacherConflicts(chromosome) {
+        // Build teacher → period → genes map
+        const teacherSlots = {};
+        chromosome.forEach(g => {
+            if (!g.teacherId) return;
+            const key = `${g.teacherId}_${g.periodIndex}`;
+            if (!teacherSlots[key]) teacherSlots[key] = [];
+            teacherSlots[key].push(g);
+        });
 
-                // Find free morning slots first, then any free slot
-                const freeSlots = [];
-                for (let i = 0; i < 35; i++) {
-                    if (!occupiedSlots.has(i)) freeSlots.push(i);
+        // Find conflicts
+        for (const [, genes] of Object.entries(teacherSlots)) {
+            if (genes.length <= 1) continue;
+
+            // Found a conflict! Move one gene to a free slot in its class
+            const moveGene = genes.find(g => !g.locked) || genes[0];
+            if (moveGene.locked) continue;
+
+            // Find all occupied slots in this class
+            const classGenes = chromosome.filter(g => g.classId === moveGene.classId);
+            const occupiedSlots = new Set(classGenes.map(g => g.periodIndex));
+
+            // Find free morning slots first, then any free slot
+            const freeSlots = [];
+            for (let i = 0; i < 35; i++) {
+                if (!occupiedSlots.has(i)) freeSlots.push(i);
+            }
+
+            if (freeSlots.length > 0) {
+                // Prefer swapping with another gene rather than moving to empty
+                const swapCandidates = classGenes.filter(g => {
+                    if (g === moveGene || g.locked) return false;
+                    // Check if swapping would NOT create a new teacher conflict
+                    const wouldConflict = chromosome.some(other =>
+                        other !== moveGene && other !== g &&
+                        other.teacherId === moveGene.teacherId &&
+                        other.periodIndex === g.periodIndex
+                    );
+                    return !wouldConflict;
+                });
+
+                if (swapCandidates.length > 0) {
+                    const swap = swapCandidates[Math.floor(Math.random() * swapCandidates.length)];
+                    const temp = moveGene.periodIndex;
+                    moveGene.periodIndex = swap.periodIndex;
+                    swap.periodIndex = temp;
+                    return true;
                 }
+            }
+        }
+        return false;
+    }
 
-                if (freeSlots.length > 0) {
-                    // Prefer swapping with another gene rather than moving to empty
-                    const swapCandidates = classGenes.filter(g => {
-                        if (g === moveGene || g.locked) return false;
-                        // Check if swapping would NOT create a new teacher conflict
-                        const wouldConflict = chromosome.some(other =>
-                            other !== moveGene && other !== g &&
-                            other.teacherId === moveGene.teacherId &&
-                            other.periodIndex === g.periodIndex
-                        );
-                        return !wouldConflict;
+    /** [Chinese Repair] Fix Chinese > 2 per day violations. */
+    _repairChineseViolations(classGenes) {
+        const chineseGenes = classGenes.filter(g => {
+            const n = this.courseNameMap?.get(g.courseId) || '';
+            return n.includes('國') || n.includes('語');
+        });
+        if (chineseGenes.length === 0) return false;
+
+        // Group by day
+        const dayMap = {};
+        chineseGenes.forEach(g => {
+            const d = getDayIndex(g.periodIndex);
+            if (!dayMap[d]) dayMap[d] = [];
+            dayMap[d].push(g);
+        });
+
+        // Find days with > 2 Chinese classes
+        for (const [day, genes] of Object.entries(dayMap)) {
+            if (genes.length > 2) {
+                // Determine which days have < 2 Chinese classes
+                // We need to move genes[2], genes[3] etc. to other days
+                const validDestDays = [0, 1, 2, 3, 4].filter(d => {
+                    const count = (dayMap[d] || []).length;
+                    return d !== parseInt(day) && count < 2;
+                });
+
+                if (validDestDays.length > 0) {
+                    const geneToMove = genes[2]; // Move the 3rd one
+                    // Find a swap candidate in a valid destination day
+                    // Prefer swapping with non-core subject
+                    const targetDay = validDestDays[Math.floor(Math.random() * validDestDays.length)];
+
+                    const candidates = classGenes.filter(g => {
+                        if (g.locked) return false;
+                        if (getDayIndex(g.periodIndex) !== targetDay) return false;
+                        const n = this.courseNameMap?.get(g.courseId) || '';
+                        return !n.includes('國') && !n.includes('語') && !n.includes('數'); // Don't swap with Math/Chinese
                     });
 
-                    if (swapCandidates.length > 0) {
-                        const swap = swapCandidates[Math.floor(Math.random() * swapCandidates.length)];
-                        const temp = moveGene.periodIndex;
-                        moveGene.periodIndex = swap.periodIndex;
-                        swap.periodIndex = temp;
+                    if (candidates.length > 0) {
+                        const swap = candidates[Math.floor(Math.random() * candidates.length)];
+                        const t = geneToMove.periodIndex;
+                        geneToMove.periodIndex = swap.periodIndex;
+                        swap.periodIndex = t;
                         return true;
                     }
                 }
             }
-            return false;
         }
+        return false;
+    }
 
-        /** [Chinese Repair] Fix Chinese > 2 per day violations. */
-        _repairChineseViolations(classGenes) {
-            const chineseGenes = classGenes.filter(g => {
+    /** [Math Repair] Fix math afternoon or same-day violations. */
+    _repairMathViolations(classGenes) {
+        const mathGenes = classGenes.filter(g => {
+            const n = this.courseNameMap?.get(g.courseId) || '';
+            return n.includes('數');
+        });
+        if (mathGenes.length === 0) return false;
+
+        // Fix 1: afternoon math → swap to morning
+        const badMath = mathGenes.find(g => getTimeSlotIndex(g.periodIndex) >= 4);
+        if (badMath) {
+            const ok = classGenes.filter(g => {
+                if (g.locked || getTimeSlotIndex(g.periodIndex) >= 4) return false;
                 const n = this.courseNameMap?.get(g.courseId) || '';
-                return n.includes('國') || n.includes('語');
+                if (n.includes('數')) return false;
+                if (n.includes('體') && (getTimeSlotIndex(badMath.periodIndex) === 3 || getTimeSlotIndex(badMath.periodIndex) === 4)) return false;
+                return true;
             });
-            if (chineseGenes.length === 0) return false;
-
-            // Group by day
-            const dayMap = {};
-            chineseGenes.forEach(g => {
-                const d = getDayIndex(g.periodIndex);
-                if (!dayMap[d]) dayMap[d] = [];
-                dayMap[d].push(g);
-            });
-
-            // Find days with > 2 Chinese classes
-            for (const [day, genes] of Object.entries(dayMap)) {
-                if (genes.length > 2) {
-                    // Determine which days have < 2 Chinese classes
-                    // We need to move genes[2], genes[3] etc. to other days
-                    const validDestDays = [0, 1, 2, 3, 4].filter(d => {
-                        const count = (dayMap[d] || []).length;
-                        return d !== parseInt(day) && count < 2;
-                    });
-
-                    if (validDestDays.length > 0) {
-                        const geneToMove = genes[2]; // Move the 3rd one
-                        // Find a swap candidate in a valid destination day
-                        // Prefer swapping with non-core subject
-                        const targetDay = validDestDays[Math.floor(Math.random() * validDestDays.length)];
-
-                        const candidates = classGenes.filter(g => {
-                            if (g.locked) return false;
-                            if (getDayIndex(g.periodIndex) !== targetDay) return false;
-                            const n = this.courseNameMap?.get(g.courseId) || '';
-                            return !n.includes('國') && !n.includes('語') && !n.includes('數'); // Don't swap with Math/Chinese
-                        });
-
-                        if (candidates.length > 0) {
-                            const swap = candidates[Math.floor(Math.random() * candidates.length)];
-                            const t = geneToMove.periodIndex;
-                            geneToMove.periodIndex = swap.periodIndex;
-                            swap.periodIndex = t;
-                            return true;
-                        }
-                    }
-                }
+            if (ok.length > 0) {
+                const s = ok[Math.floor(Math.random() * ok.length)];
+                const t = badMath.periodIndex; badMath.periodIndex = s.periodIndex; s.periodIndex = t;
+                return true;
             }
-            return false;
         }
 
-        /** [Math Repair] Fix math afternoon or same-day violations. */
-        _repairMathViolations(classGenes) {
-            const mathGenes = classGenes.filter(g => {
-                const n = this.courseNameMap?.get(g.courseId) || '';
-                return n.includes('數');
-            });
-            if (mathGenes.length === 0) return false;
-
-            // Fix 1: afternoon math → swap to morning
-            const badMath = mathGenes.find(g => getTimeSlotIndex(g.periodIndex) >= 4);
-            if (badMath) {
+        // Fix 2: same-day duplicates → move to unused day morning
+        const mathDays = {};
+        mathGenes.forEach(g => { const d = getDayIndex(g.periodIndex); (mathDays[d] = mathDays[d] || []).push(g); });
+        for (const [day, genes] of Object.entries(mathDays)) {
+            if (genes.length > 1) {
+                const usedDays = new Set(mathGenes.map(g => getDayIndex(g.periodIndex)));
+                const move = genes[1];
                 const ok = classGenes.filter(g => {
-                    if (g.locked || getTimeSlotIndex(g.periodIndex) >= 4) return false;
+                    if (g.locked) return false;
+                    const d = getDayIndex(g.periodIndex);
+                    if (d === parseInt(day) || usedDays.has(d)) return false;
+                    if (getTimeSlotIndex(g.periodIndex) >= 4) return false;
                     const n = this.courseNameMap?.get(g.courseId) || '';
-                    if (n.includes('數')) return false;
-                    if (n.includes('體') && (getTimeSlotIndex(badMath.periodIndex) === 3 || getTimeSlotIndex(badMath.periodIndex) === 4)) return false;
-                    return true;
+                    return !n.includes('數');
                 });
                 if (ok.length > 0) {
                     const s = ok[Math.floor(Math.random() * ok.length)];
-                    const t = badMath.periodIndex; badMath.periodIndex = s.periodIndex; s.periodIndex = t;
+                    const t = move.periodIndex; move.periodIndex = s.periodIndex; s.periodIndex = t;
                     return true;
                 }
             }
-
-            // Fix 2: same-day duplicates → move to unused day morning
-            const mathDays = {};
-            mathGenes.forEach(g => { const d = getDayIndex(g.periodIndex); (mathDays[d] = mathDays[d] || []).push(g); });
-            for (const [day, genes] of Object.entries(mathDays)) {
-                if (genes.length > 1) {
-                    const usedDays = new Set(mathGenes.map(g => getDayIndex(g.periodIndex)));
-                    const move = genes[1];
-                    const ok = classGenes.filter(g => {
-                        if (g.locked) return false;
-                        const d = getDayIndex(g.periodIndex);
-                        if (d === parseInt(day) || usedDays.has(d)) return false;
-                        if (getTimeSlotIndex(g.periodIndex) >= 4) return false;
-                        const n = this.courseNameMap?.get(g.courseId) || '';
-                        return !n.includes('數');
-                    });
-                    if (ok.length > 0) {
-                        const s = ok[Math.floor(Math.random() * ok.length)];
-                        const t = move.periodIndex; move.periodIndex = s.periodIndex; s.periodIndex = t;
-                        return true;
-                    }
-                }
-            }
-            return false;
         }
+        return false;
+    }
 
-        /** [Directed Mutation] Fix worst penalty gene. */
-        _directedMutate(classGenes) {
-            let worstGene = null, worstPenalty = -1;
-            for (const gene of classGenes) {
-                const cn = this.courseNameMap?.get(gene.courseId) || '';
-                const ts = getTimeSlotIndex(gene.periodIndex);
-                let p = 0;
-                if (cn.includes('數') && ts >= 4) p += 50000;
-                if (cn.includes('數')) {
-                    const d = getDayIndex(gene.periodIndex);
-                    if (classGenes.some(g => g !== gene && getDayIndex(g.periodIndex) === d && (this.courseNameMap?.get(g.courseId) || '').includes('數'))) p += 50000;
-                }
-                if (cn.includes('體') && (ts === 3 || ts === 4)) p += 5000;
-                // Chinese afternoon (Soft)
-                if ((cn.includes('國') || cn.includes('語')) && ts >= 4) p += 50;
-                // Chinese > 2 per day (HARD)
-                if (cn.includes('國') || cn.includes('語')) {
-                    const d = getDayIndex(gene.periodIndex);
-                    const dayCount = classGenes.filter(g => getDayIndex(g.periodIndex) === d && ((this.courseNameMap?.get(g.courseId) || '').includes('國') || (this.courseNameMap?.get(g.courseId) || '').includes('語'))).length;
-                    if (dayCount > 2) p += 50000;
-                }
-                // Art morning
-                if ((cn.includes('美') || cn.includes('藝')) && ts < 4) p += 50;
-
-                if (p > worstPenalty) { worstPenalty = p; worstGene = gene; }
+    /** [Directed Mutation] Fix worst penalty gene. */
+    _directedMutate(classGenes) {
+        let worstGene = null, worstPenalty = -1;
+        for (const gene of classGenes) {
+            const cn = this.courseNameMap?.get(gene.courseId) || '';
+            const ts = getTimeSlotIndex(gene.periodIndex);
+            let p = 0;
+            if (cn.includes('數') && ts >= 4) p += 50000;
+            if (cn.includes('數')) {
+                const d = getDayIndex(gene.periodIndex);
+                if (classGenes.some(g => g !== gene && getDayIndex(g.periodIndex) === d && (this.courseNameMap?.get(g.courseId) || '').includes('數'))) p += 50000;
             }
-            if (!worstGene || worstPenalty <= 0) { this._randomSwap(classGenes); return; }
-
-            const candidates = classGenes.filter(g => {
-                if (g === worstGene || g.locked) return false;
-                const cn = this.courseNameMap?.get(g.courseId) || '';
-                const wts = getTimeSlotIndex(worstGene.periodIndex);
-                if (cn.includes('數') && wts >= 4) return false;
-                if ((cn.includes('國') || cn.includes('語')) && wts >= 4) return false;
-                if (cn.includes('體') && (wts === 3 || wts === 4)) return false;
-                return true;
-            });
-            if (candidates.length > 0) {
-                const s = candidates[Math.floor(Math.random() * candidates.length)];
-                const t = worstGene.periodIndex; worstGene.periodIndex = s.periodIndex; s.periodIndex = t;
+            if (cn.includes('體') && (ts === 3 || ts === 4)) p += 5000;
+            // Chinese afternoon (Soft)
+            if ((cn.includes('國') || cn.includes('語')) && ts >= 4) p += 50;
+            // Chinese > 2 per day (HARD)
+            if (cn.includes('國') || cn.includes('語')) {
+                const d = getDayIndex(gene.periodIndex);
+                const dayCount = classGenes.filter(g => getDayIndex(g.periodIndex) === d && ((this.courseNameMap?.get(g.courseId) || '').includes('國') || (this.courseNameMap?.get(g.courseId) || '').includes('語'))).length;
+                if (dayCount > 2) p += 50000;
             }
+            // Art morning
+            if ((cn.includes('美') || cn.includes('藝')) && ts < 4) p += 50;
+
+            if (p > worstPenalty) { worstPenalty = p; worstGene = gene; }
         }
+        if (!worstGene || worstPenalty <= 0) { this._randomSwap(classGenes); return; }
 
-        /** Classic random swap mutation. */
-        _randomSwap(classGenes) {
-            const a = Math.floor(Math.random() * classGenes.length);
-            let b = Math.floor(Math.random() * classGenes.length);
-            let s = 0;
-            while (b === a && s < 20) { b = Math.floor(Math.random() * classGenes.length); s++; }
-            if (!classGenes[a].locked && !classGenes[b].locked) {
-                const t = classGenes[a].periodIndex;
-                classGenes[a].periodIndex = classGenes[b].periodIndex;
-                classGenes[b].periodIndex = t;
-            }
+        const candidates = classGenes.filter(g => {
+            if (g === worstGene || g.locked) return false;
+            const cn = this.courseNameMap?.get(g.courseId) || '';
+            const wts = getTimeSlotIndex(worstGene.periodIndex);
+            if (cn.includes('數') && wts >= 4) return false;
+            if ((cn.includes('國') || cn.includes('語')) && wts >= 4) return false;
+            if (cn.includes('體') && (wts === 3 || wts === 4)) return false;
+            return true;
+        });
+        if (candidates.length > 0) {
+            const s = candidates[Math.floor(Math.random() * candidates.length)];
+            const t = worstGene.periodIndex; worstGene.periodIndex = s.periodIndex; s.periodIndex = t;
         }
     }
+
+    /** Classic random swap mutation. */
+    _randomSwap(classGenes) {
+        const a = Math.floor(Math.random() * classGenes.length);
+        let b = Math.floor(Math.random() * classGenes.length);
+        let s = 0;
+        while (b === a && s < 20) { b = Math.floor(Math.random() * classGenes.length); s++; }
+        if (!classGenes[a].locked && !classGenes[b].locked) {
+            const t = classGenes[a].periodIndex;
+            classGenes[a].periodIndex = classGenes[b].periodIndex;
+            classGenes[b].periodIndex = t;
+        }
+    }
+}
