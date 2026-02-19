@@ -66,3 +66,88 @@
     font-size: 0.8rem;
     text-align: right;
 }
+
+/* ═══ Grade-Tabbed Class Selector ═══ */
+.grade-tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+}
+
+.grade-tab {
+    padding: 6px 16px;
+    border: 2px solid #e2e8f0;
+    border-radius: 20px;
+    background: #fff;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #64748b;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.grade-tab:hover {
+    border-color: #6366f1;
+    color: #6366f1;
+    background: #eef2ff;
+}
+
+.grade-tab.active {
+    background: linear-gradient(135deg, #6366f1, #818cf8);
+    color: white;
+    border-color: #6366f1;
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+}
+
+.class-pills {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.class-pill {
+    padding: 6px 14px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #f8fafc;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: #475569;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.class-pill:hover {
+    background: #eef2ff;
+    border-color: #a5b4fc;
+    transform: translateY(-1px);
+}
+
+.class-pill.active {
+    background: #6366f1;
+    color: white;
+    border-color: #6366f1;
+    font-weight: 700;
+    box-shadow: 0 2px 6px rgba(99, 102, 241, 0.25);
+}
+
+@media (max-width: 600px) {
+    .grade-tabs {
+        gap: 4px;
+    }
+
+    .grade-tab {
+        padding: 5px 10px;
+        font-size: 0.78rem;
+    }
+
+    .class-pills {
+        gap: 4px;
+    }
+
+    .class-pill {
+        padding: 5px 10px;
+        font-size: 0.75rem;
+    }
+}

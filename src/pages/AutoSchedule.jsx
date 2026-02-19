@@ -1428,15 +1428,42 @@ function AutoSchedule() {
                                 )}
                             </div>
                             <div className="preview-selector">
-                                <select
-                                    value={viewClassId}
-                                    onChange={(e) => setViewClassId(e.target.value)}
-                                    className="main-select"
-                                >
-                                    {classes.map(c => (
-                                        <option key={c.id} value={c.id}>{c.name}</option>
-                                    ))}
-                                </select>
+                                {/* Grade Tabs */}
+                                <div className="grade-tabs">
+                                    {[1, 2, 3, 4, 5, 6].map(g => {
+                                        const gradeClasses = classes.filter(c => c.grade === g || String(c.name).startsWith(`${g}年`));
+                                        if (gradeClasses.length === 0) return null;
+                                        const isActiveGrade = gradeClasses.some(c => c.id === viewClassId);
+                                        return (
+                                            <button
+                                                key={g}
+                                                className={`grade-tab ${isActiveGrade ? 'active' : ''}`}
+                                                onClick={() => setViewClassId(gradeClasses[0].id)}
+                                            >
+                                                {g}年級
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                                {/* Class Pills */}
+                                <div className="class-pills">
+                                    {(() => {
+                                        const currentGrade = classes.find(c => c.id === viewClassId)?.grade
+                                            || parseInt(String(classes.find(c => c.id === viewClassId)?.name)?.[0]) || 1;
+                                        const gradeClasses = classes.filter(c =>
+                                            c.grade === currentGrade || String(c.name).startsWith(`${currentGrade}年`)
+                                        );
+                                        return gradeClasses.map(c => (
+                                            <button
+                                                key={c.id}
+                                                className={`class-pill ${c.id === viewClassId ? 'active' : ''}`}
+                                                onClick={() => setViewClassId(c.id)}
+                                            >
+                                                {typeof c.name === 'string' ? c.name : c.name?.name || c.id}
+                                            </button>
+                                        ));
+                                    })()}
+                                </div>
                             </div>
                         </div>
 
@@ -1451,6 +1478,9 @@ function AutoSchedule() {
                                 setTimeout(() => {
                                     document.querySelector('.schedule-view')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                                 }, 100);
+                            }}
+                            onNavigateToTeacher={(teacherId) => {
+                                window.open(`${window.location.pathname.replace(/\/auto$/, '')}/teacher?id=${teacherId}`, '_blank');
                             }}
                         />
 

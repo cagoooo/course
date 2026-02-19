@@ -6,7 +6,7 @@ import './QualityReport.css';
  * QualityReport: 排課品質分析面板
  * 顯示 Top N 扣分項目、教師疲勞警告、整體摘要
  */
-export default function QualityReport({ solution, teachers, courses, classrooms, onNavigateToClass }) {
+export default function QualityReport({ solution, teachers, courses, classrooms, onNavigateToClass, onNavigateToTeacher }) {
     const [report, setReport] = useState(null);
     const [showAll, setShowAll] = useState(false);
 
@@ -71,20 +71,32 @@ export default function QualityReport({ solution, teachers, courses, classrooms,
                         <div className="qr-details">
                             <h4>🏷️ 扣分明細（依嚴重程度排序）</h4>
                             <ul className="penalty-list">
-                                {displayPenalties.map((p, i) => (
-                                    <li key={i} className={`penalty-item severity-${p.severity} ${p.classId && onNavigateToClass ? 'clickable' : ''}`}
-                                        onClick={() => p.classId && onNavigateToClass?.(p.classId)}
-                                        title={p.classId ? `點擊跳轉至 ${p.classId} 課表` : ''}
-                                    >
-                                        <span className="penalty-desc">
-                                            {p.description}
-                                            {p.classId && onNavigateToClass && (
-                                                <span className="jump-badge">👉 查看課表</span>
-                                            )}
-                                        </span>
-                                        <span className="penalty-score">-{p.penalty}</span>
-                                    </li>
-                                ))}
+                                {displayPenalties.map((p, i) => {
+                                    const hasClassLink = p.classId && onNavigateToClass;
+                                    const hasTeacherLink = !p.classId && p.teacherId && onNavigateToTeacher;
+                                    const isClickable = hasClassLink || hasTeacherLink;
+                                    return (
+                                        <li key={i}
+                                            className={`penalty-item severity-${p.severity} ${isClickable ? 'clickable' : ''}`}
+                                            onClick={() => {
+                                                if (hasClassLink) onNavigateToClass(p.classId);
+                                                else if (hasTeacherLink) onNavigateToTeacher(p.teacherId);
+                                            }}
+                                            title={hasClassLink ? `點擊跳轉至 ${p.classId} 課表` : hasTeacherLink ? `點擊查看教師課表` : ''}
+                                        >
+                                            <span className="penalty-desc">
+                                                {p.description}
+                                                {hasClassLink && (
+                                                    <span className="jump-badge">👉 查看班級</span>
+                                                )}
+                                                {hasTeacherLink && (
+                                                    <span className="jump-badge jump-teacher">👨‍🏫 查看教師</span>
+                                                )}
+                                            </span>
+                                            <span className="penalty-score">-{p.penalty}</span>
+                                        </li>
+                                    );
+                                })}
                             </ul>
                             {report.penalties.length > 15 && !showAll && (
                                 <button className="btn-show-all" onClick={() => setShowAll(true)}>
