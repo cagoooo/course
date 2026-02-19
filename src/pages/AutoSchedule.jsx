@@ -12,6 +12,7 @@ import ConflictResolver from '../components/ConflictResolver';
 import { isSlotAllowed } from '../algorithms/types.js';
 import { runDiagnostics } from '../algorithms/Diagnostics';
 import SnapshotManager from '../components/SnapshotManager';
+import QualityReport from '../components/QualityReport';
 import { DiffService } from '../services/DiffService'; // Import Diff Service
 import './AutoSchedule_ProgressBar.css';
 
@@ -279,7 +280,7 @@ function AutoSchedule() {
             type: 'START',
             payload: {
                 data: safeData,
-                config: { populationSize: 80, mutationRate: 0.02 }
+                config: { populationSize: 100, mutationRate: 0.05 }
             }
         });
     };
@@ -1437,6 +1438,14 @@ function AutoSchedule() {
                                 </select>
                             </div>
                         </div>
+
+                        {/* [Phase 1.1] Quality Report */}
+                        <QualityReport
+                            solution={bestSolution}
+                            teachers={teachers}
+                            courses={courses}
+                            classrooms={classrooms}
+                        />
 
                         <div className="schedule-view">
                             {bestSolution.length > 0 ? (

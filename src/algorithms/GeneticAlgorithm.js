@@ -5,7 +5,7 @@ export class GeneticAlgorithm {
     constructor(config) {
         this.config = config || {};
         this.checker = new ConstraintChecker();
-        this.populationSize = this.config.populationSize || 80;
+        this.populationSize = this.config.populationSize || 100;
         this.mutationRate = this.config.mutationRate || 0.02;
         this.baseMutationRate = this.mutationRate;
         this.elitismCount = 3; // Top 3 直接晉級
@@ -181,13 +181,16 @@ export class GeneticAlgorithm {
         }
 
         // Escalate mutation when stagnating
-        if (this.stagnationCounter > 50) {
-            this.mutationRate = Math.min(0.05, this.baseMutationRate * 3); // 3x
+        if (this.stagnationCounter > 30) {
+            this.mutationRate = Math.min(0.10, this.baseMutationRate * 2); // 2x
+        }
+        if (this.stagnationCounter > 80) {
+            this.mutationRate = Math.min(0.20, this.baseMutationRate * 4); // 4x aggressive
         }
         if (this.stagnationCounter > 150) {
-            this.mutationRate = Math.min(0.15, this.baseMutationRate * 8); // 8x aggressive
+            this.mutationRate = Math.min(0.35, this.baseMutationRate * 7); // 7x mega shake
         }
-        if (this.stagnationCounter >= 200) {
+        if (this.stagnationCounter >= 250) {
             this.converged = true;
         }
 

@@ -10,7 +10,28 @@ export default defineConfig({
         react(),
         VitePWA({
             registerType: 'autoUpdate',
+            devOptions: {
+                enabled: false // 開發模式不啟用 SW，避免快取干擾 HMR
+            },
             includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
+            workbox: {
+                // 只快取 http/https 請求，排除 chrome-extension:// 等非標準協定
+                navigateFallback: '/course/index.html',
+                navigateFallbackDenylist: [/^\/api/],
+                runtimeCaching: [
+                    {
+                        urlPattern: /^https?:\/\/.*/,
+                        handler: 'StaleWhileRevalidate',
+                        options: {
+                            cacheName: 'smes-runtime-cache',
+                            expiration: {
+                                maxEntries: 200,
+                                maxAgeSeconds: 60 * 60 * 24 * 7 // 7 天
+                            }
+                        }
+                    }
+                ]
+            },
             manifest: {
                 name: 'SMES AI 智慧排課系統',
                 short_name: 'SMES 排課',
