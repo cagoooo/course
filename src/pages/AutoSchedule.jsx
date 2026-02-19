@@ -15,6 +15,7 @@ import SnapshotManager from '../components/SnapshotManager';
 import QualityReport from '../components/QualityReport';
 import ExcelPanel from '../components/ExcelPanel';
 import { DiffService } from '../services/DiffService'; // Import Diff Service
+import { ExcelExporter } from '../utils/excel/ExcelExporter';
 import './AutoSchedule_ProgressBar.css';
 
 
@@ -1396,7 +1397,7 @@ function AutoSchedule() {
                         </div>
                     </div>
 
-                    <div className="preview-section">
+                    <div className="preview-section" id="schedule-preview-anchor">
                         <div className="preview-header">
                             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                                 <h3>{diffMode ? `🔍 比對模式: vs ${comparisonName}` : '即時預覽 (可拖拉調整)'}</h3>
@@ -1438,7 +1439,12 @@ function AutoSchedule() {
                                             <button
                                                 key={g}
                                                 className={`grade-tab ${isActiveGrade ? 'active' : ''}`}
-                                                onClick={() => setViewClassId(gradeClasses[0].id)}
+                                                onClick={() => {
+                                                    setViewClassId(gradeClasses[0].id);
+                                                    setTimeout(() => {
+                                                        document.getElementById('schedule-preview-anchor')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                                    }, 80);
+                                                }}
                                             >
                                                 {g}年級
                                             </button>
@@ -1457,7 +1463,12 @@ function AutoSchedule() {
                                             <button
                                                 key={c.id}
                                                 className={`class-pill ${c.id === viewClassId ? 'active' : ''}`}
-                                                onClick={() => setViewClassId(c.id)}
+                                                onClick={() => {
+                                                    setViewClassId(c.id);
+                                                    setTimeout(() => {
+                                                        document.getElementById('schedule-preview-anchor')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                                    }, 80);
+                                                }}
                                             >
                                                 {typeof c.name === 'string' ? c.name : c.name?.name || c.id}
                                             </button>
@@ -1634,14 +1645,130 @@ function AutoSchedule() {
                             </button>
                         </div>
                     ) : (
-                        <ExportPanel
-                            classes={classes}
-                            teachers={teachers}
-                            courses={courses}
-                            bestSolution={bestSolution}
-                            classrooms={classrooms}
-                            onBatchPrint={handleBatchPrint}
-                        />
+                        <>
+                            <ExportPanel
+                                classes={classes}
+                                teachers={teachers}
+                                courses={courses}
+                                bestSolution={bestSolution}
+                                classrooms={classrooms}
+                                onBatchPrint={handleBatchPrint}
+                            />
+
+                            {/* Excel Export Zone */}
+                            <div style={{
+                                marginTop: '24px',
+                                background: 'linear-gradient(135deg, #667eea22 0%, #764ba222 50%, #f093fb22 100%)',
+                                borderRadius: '20px',
+                                padding: '28px',
+                                border: '1.5px solid rgba(102, 126, 234, 0.25)',
+                                boxShadow: '0 8px 32px rgba(102, 126, 234, 0.15), inset 0 1px 0 rgba(255,255,255,0.6)',
+                                backdropFilter: 'blur(10px)',
+                            }}>
+                                {/* Header */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                                    <div style={{
+                                        width: '44px', height: '44px',
+                                        background: 'linear-gradient(135deg, #667eea, #764ba2)',
+                                        borderRadius: '12px',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        fontSize: '22px',
+                                        boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)',
+                                        flexShrink: 0,
+                                    }}>📊</div>
+                                    <div>
+                                        <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#3d2b7e' }}>資料匯出 (Excel)</h3>
+                                        <p style={{ margin: 0, fontSize: '0.82rem', color: '#6b6b8a' }}>將排課結果匯出為標準 Excel，方便列印與分發</p>
+                                    </div>
+                                </div>
+
+                                {/* Export Cards Grid */}
+                                <div style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+                                    gap: '16px',
+                                    marginTop: '20px',
+                                }}>
+                                    {/* Card 1: 班級課表 */}
+                                    <button
+                                        onClick={async () => {
+                                            try {
+                                                setStatus('running');
+                                                const exporter = new ExcelExporter();
+                                                const courseNameMap = new Map(courses.map(c => [c.id, c.name]));
+                                                const teacherNameMap = new Map(teachers.map(t => [t.id, t.name]));
+                                                await exporter.exportClassSchedules(bestSolution, courseNameMap, teacherNameMap);
+                                                alert('✅ 班級課表匯出成功！');
+                                            } catch (e) {
+                                                console.error(e);
+                                                alert('❌ 匯出失敗: ' + e.message);
+                                            } finally {
+                                                setStatus('idle');
+                                            }
+                                        }}
+                                        style={{
+                                            background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+                                            border: 'none',
+                                            borderRadius: '16px',
+                                            padding: '20px',
+                                            cursor: 'pointer',
+                                            textAlign: 'left',
+                                            boxShadow: '0 6px 20px rgba(79, 172, 254, 0.4), 0 2px 8px rgba(0,0,0,0.08)',
+                                            transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                                            color: 'white',
+                                        }}
+                                        onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 12px 28px rgba(79, 172, 254, 0.5), 0 4px 12px rgba(0,0,0,0.1)'; }}
+                                        onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(79, 172, 254, 0.4), 0 2px 8px rgba(0,0,0,0.08)'; }}
+                                    >
+                                        <div style={{ fontSize: '2rem', marginBottom: '8px' }}>🏫</div>
+                                        <div style={{ fontWeight: 700, fontSize: '1rem', marginBottom: '4px' }}>班級課表</div>
+                                        <div style={{ fontSize: '0.78rem', opacity: 0.9 }}>每班一個 Sheet，含完整節次與科目</div>
+                                        <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 600, opacity: 0.95 }}>
+                                            <span>📥</span> 匯出 .xlsx
+                                        </div>
+                                    </button>
+
+                                    {/* Card 2: 教師課表 */}
+                                    <button
+                                        onClick={async () => {
+                                            try {
+                                                setStatus('running');
+                                                const exporter = new ExcelExporter();
+                                                const courseNameMap = new Map(courses.map(c => [c.id, c.name]));
+                                                const teacherNameMap = new Map(teachers.map(t => [t.id, t.name]));
+                                                await exporter.exportTeacherSchedules(bestSolution, courseNameMap, teacherNameMap);
+                                                alert('✅ 教師課表匯出成功！');
+                                            } catch (e) {
+                                                console.error(e);
+                                                alert('❌ 匯出失敗: ' + e.message);
+                                            } finally {
+                                                setStatus('idle');
+                                            }
+                                        }}
+                                        style={{
+                                            background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+                                            border: 'none',
+                                            borderRadius: '16px',
+                                            padding: '20px',
+                                            cursor: 'pointer',
+                                            textAlign: 'left',
+                                            boxShadow: '0 6px 20px rgba(250, 112, 154, 0.4), 0 2px 8px rgba(0,0,0,0.08)',
+                                            transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                                            color: 'white',
+                                        }}
+                                        onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 12px 28px rgba(250, 112, 154, 0.5), 0 4px 12px rgba(0,0,0,0.1)'; }}
+                                        onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(250, 112, 154, 0.4), 0 2px 8px rgba(0,0,0,0.08)'; }}
+                                    >
+                                        <div style={{ fontSize: '2rem', marginBottom: '8px' }}>👨‍🏫</div>
+                                        <div style={{ fontWeight: 700, fontSize: '1rem', marginBottom: '4px' }}>教師課表</div>
+                                        <div style={{ fontSize: '0.78rem', opacity: 0.9 }}>每師一個 Sheet，含導班與任課資訊</div>
+                                        <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 600, opacity: 0.95 }}>
+                                            <span>📥</span> 匯出 .xlsx
+                                        </div>
+                                    </button>
+                                </div>
+                            </div>
+                        </>
                     )}
                 </div>
             )}
@@ -1666,60 +1793,49 @@ function AutoSchedule() {
                                 const isAvoid = c.state === 'avoid';
                                 const isFull = c.state === 'full';
 
-                                const isDisabled = isBusy; // Only busy is truly disabled now
+                                const isDisabled = isBusy;
 
                                 const handleItemClick = () => {
                                     if (isFull) {
-                                        // Jump to teacher settings
                                         setSmartFillModal({ ...smartFillModal, show: false });
                                         setActiveTab('workload');
                                         setSelectedTeacherId(c.teacherId);
                                     } else if (!isBusy) {
-                                        // Select for scheduling
                                         handleSmartFillSelect(c);
+                                        setSmartFillModal({ ...smartFillModal, show: false });
                                     }
                                 };
 
                                 return (
-                                    <button
+                                    <div
                                         key={idx}
-                                        className={`candidate-item ${isDisabled ? 'disabled' : ''}`}
-                                        disabled={isDisabled}
+                                        className={`candidate-item ${c.state}`}
                                         onClick={handleItemClick}
-                                        title={isFull ? "點擊前往調整該老師配課設定" : ""}
                                         style={{
-                                            width: '100%',
+                                            padding: '10px',
+                                            borderBottom: '1px solid #eee',
+                                            cursor: isDisabled ? 'not-allowed' : 'pointer',
                                             display: 'flex',
                                             justifyContent: 'space-between',
                                             alignItems: 'center',
-                                            padding: '12px',
-                                            marginBottom: '8px',
-                                            border: '1px solid #ddd',
-                                            borderRadius: '8px',
-                                            backgroundColor: isFull ? '#eff6ff' : isBusy ? '#f3f4f6' : isRestricted ? '#fee2e2' : isAvoid ? '#fef3c7' : 'white',
-                                            cursor: isDisabled ? 'not-allowed' : 'pointer',
-                                            textAlign: 'left',
-                                            opacity: 1 // Full items are now actionable, so full opacity
+                                            opacity: isDisabled ? 0.6 : 1,
+                                            backgroundColor: isFull ? '#f8f9fa' : 'white'
                                         }}
                                     >
                                         <div>
-                                            <div style={{ fontWeight: 'bold', color: isFull ? '#2563eb' : 'inherit' }}>
-                                                {c.courseName}
-                                                {isFull && <span style={{ fontSize: '0.8rem', marginLeft: '6px', color: '#60a5fa', fontWeight: 'normal' }}>↗ 前往調整</span>}
-                                            </div>
-                                            <div style={{ fontSize: '0.9rem', color: '#555' }}>
-                                                {c.teacherName} {c.reason && <span style={{ color: isRestricted ? '#ef4444' : '#d97706', fontSize: '0.8rem' }}>({c.reason})</span>}
+                                            <div style={{ fontWeight: 'bold' }}>{c.teacherName}</div>
+                                            <div style={{ fontSize: '0.9rem', color: '#666' }}>
+                                                {c.remaining}/{c.total} 節 • {c.priorityScore.toFixed(0)}分
+                                                {isAvoid && <span style={{ color: 'orange', marginLeft: '5px' }}>(非偏好)</span>}
+                                                {isRestricted && <span style={{ color: 'red', marginLeft: '5px' }}>(避免)</span>}
+                                                {isFull && <span style={{ color: '#28a745', marginLeft: '5px' }}>(已排完)</span>}
                                             </div>
                                         </div>
-                                        <div style={{ textAlign: 'right' }}>
-                                            <div style={{ fontSize: '0.8rem', color: '#666' }}>剩餘</div>
-                                            <div style={{ fontWeight: 'bold', color: isFull ? '#9ca3af' : '#2563eb' }}>{c.remaining} 節</div>
-                                        </div>
-                                    </button>
+                                        {isDisabled && <span style={{ color: 'red', fontSize: '0.8rem' }}>衝堂</span>}
+                                    </div>
                                 );
                             })}
                         </div>
-
                         <div style={{ marginTop: '1rem', textAlign: 'right' }}>
                             <button className="btn btn-secondary" onClick={() => setSmartFillModal({ ...smartFillModal, show: false })}>
                                 取消
@@ -1728,6 +1844,7 @@ function AutoSchedule() {
                     </div>
                 </div>
             )}
+
 
             {/* QR Code Modal */}
             {showQRCode && (
@@ -1742,84 +1859,163 @@ function AutoSchedule() {
                             />
                         </div>
                         <p style={{ fontSize: '0.9rem', color: '#666' }}>
-                            將此 QR Code 列印或分享，老師即可隨時查看最新課表。<br />
-                            <a href={`/public/class/${viewClassId}`} target="_blank" rel="noreferrer" style={{ color: '#6366f1' }}>點此直接開啟連結</a>
+                            掃描此 QR Code 可直接在手機上查看 <b>{viewClassId}</b> 的課表。
                         </p>
-                        <button className="btn btn-secondary" onClick={() => setShowQRCode(false)} style={{ marginTop: '1rem' }}>
-                            關閉
-                        </button>
+                        <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
+                            <button className="btn btn-primary" onClick={() => setShowQRCode(false)}>關閉</button>
+                        </div>
                     </div>
                 </div>
             )}
+            {/* Snapshot Manager */}
+            {showSnapshotManager && (
+                <div className="modal-overlay" onClick={() => setShowSnapshotManager(false)}>
+                    <div className="modal-content" onClick={e => e.stopPropagation()}>
+                        <h3>版本快照管理</h3>
+                        <SnapshotManager
+                            currentData={{ classes, teachers, courses, requirements, bestSolution }}
+                            onRestore={(data) => {
+                                if (data.classes) setClasses(data.classes);
+                                if (data.teachers) setTeachers(data.teachers);
+                                if (data.courses) setCourses(data.courses);
+                                if (data.requirements) setRequirements(data.requirements);
+                                if (data.bestSolution) setBestSolution(data.bestSolution);
+                                setShowSnapshotManager(false);
+                                alert('已還原至選定版本！');
+                            }}
+                            onLoadForDiff={(snapshotData, name) => {
+                                // 1. Save current state map
+                                const currentMap = new Map();
+                                bestSolution.forEach(g => {
+                                    const key = `${g.classId}-${g.courseId}`;
+                                    currentMap.set(key, g);
+                                });
+
+                                // 2. Generate Diff Map
+                                const newDiffMap = new Map();
+                                let diffCount = 0;
+
+                                snapshotData.bestSolution.forEach(oldGene => {
+                                    const key = `${oldGene.classId}-${oldGene.courseId}`;
+                                    const currentGene = currentMap.get(key);
+
+                                    if (!currentGene) {
+                                        // Removed in current
+                                        // newDiffMap.set(key, { status: 'removed' }); // Not visualizing removed for now
+                                    } else if (currentGene.periodIndex !== oldGene.periodIndex) {
+                                        // Moved
+                                        newDiffMap.set(currentGene.id, 'moved');
+                                        diffCount++;
+                                    } else {
+                                        // Unchanged
+                                        newDiffMap.set(currentGene.id, 'unchanged');
+                                    }
+                                });
+                                // New items? (in current but not in snapshot) - marked as 'new' ?
+                                bestSolution.forEach(g => {
+                                    // If logic needed
+                                });
+
+                                setDiffMap(newDiffMap);
+                                setComparisonName(name || '歷史版本');
+                                setOriginalBestSolution(JSON.parse(JSON.stringify(bestSolution))); // Backup
+                                setDiffMode(true);
+                                setShowSnapshotManager(false);
+
+                                alert(`已進入「版本比對模式」\n與 ${name} 相比，共有 ${diffCount} 堂課位置不同。`);
+                            }}
+                            onClose={() => setShowSnapshotManager(false)}
+                        />
+                    </div>
+                </div>
+            )}
+
+            {/* Print Settings Modal */}
+            {showPrintModal && (
+                <PrintSettingsModal
+                    isOpen={showPrintModal}
+                    onClose={() => setShowPrintModal(false)}
+                    onPrint={(settings) => {
+                        setPrintSettings(settings);
+                        setShowPrintModal(false);
+                        // Trigger print in next tick to allow state update
+                        setTimeout(() => window.print(), 100);
+                    }}
+                    defaultSettings={printSettings}
+                    isBatch={isBatchPrinting}
+                />
+            )}
             {/* Batch Print Area (Hidden in browser, visible in print) */}
-            {isBatchPrinting && (
-                <div
-                    className={`print-area print-page-${printSettings.paperSize.toLowerCase()} print-layout-${printSettings.layout}`}
-                    style={{ '--print-font-size': `${printSettings.fontSize}px` }}
-                >
-                    {printType === 'class' ? (
-                        classes
-                            .filter(c => !printFilter || (printFilter.type === 'grade' && Number(c.grade) === printFilter.value))
-                            .map(c => (
-                                <div key={c.id} className="print-page-break">
-                                    <h1 className="print-report-title">{formatPrintTitle(printSettings.titleTemplate, c)}</h1>
+            {
+                isBatchPrinting && (
+                    <div
+                        className={`print-area print-page-${printSettings.paperSize.toLowerCase()} print-layout-${printSettings.layout}`}
+                        style={{ '--print-font-size': `${printSettings.fontSize}px` }}
+                    >
+                        {printType === 'class' ? (
+                            classes
+                                .filter(c => !printFilter || (printFilter.type === 'grade' && Number(c.grade) === printFilter.value))
+                                .map(c => (
+                                    <div key={c.id} className="print-page-break">
+                                        <h1 className="print-report-title">{formatPrintTitle(printSettings.titleTemplate, c)}</h1>
+                                        <ScheduleGrid
+                                            schedule={getFullGridForClass(c.id).map(p => ({
+                                                ...p,
+                                                topLine: printSettings.showCourseName ? p?.topLine : '',
+                                                bottomLine: printSettings.showTeacherName ? p?.bottomLine : ''
+                                            }))}
+                                            type="class"
+                                            editable={false}
+                                        />
+                                    </div>
+                                ))
+                        ) : printType === 'teacher' ? (
+                            teachers
+                                .filter(t => t.id !== 'none')
+                                .filter(t => {
+                                    if (!printFilter) return true;
+                                    if (printFilter.type === 'category') {
+                                        const cat = printFilter.value;
+                                        const homeroomTeacherIds = new Set(classes.map(c => c.teacherId).filter(id => id));
+                                        if (cat === 'homeroom') return homeroomTeacherIds.has(t.id);
+                                        if (cat === 'subject') return !homeroomTeacherIds.has(t.id) && !t.name.includes('主任') && !t.name.includes('校長');
+                                        if (cat === 'admin') return t.name.includes('主任') || t.name.includes('校長') || t.name.includes('組長');
+                                    }
+                                    return true;
+                                })
+                                .map(t => (
+                                    <div key={t.id} className="print-page-break">
+                                        <h1 className="print-report-title">{formatPrintTitle(printSettings.titleTemplate, t)}</h1>
+                                        <ScheduleGrid
+                                            schedule={getFullGridForTeacher(t.id).map(p => ({
+                                                ...p,
+                                                topLine: printSettings.showCourseName ? p?.topLine : '',
+                                                bottomLine: printSettings.showClassName ? p?.bottomLine : ''
+                                            }))}
+                                            type="teacher"
+                                            editable={false}
+                                        />
+                                    </div>
+                                ))
+                        ) : (
+                            classrooms.map(room => (
+                                <div key={room.id} className="print-page-break">
+                                    <h1 className="print-report-title">{formatPrintTitle(printSettings.titleTemplate, { ...room, grade: '' })}</h1>
                                     <ScheduleGrid
-                                        schedule={getFullGridForClass(c.id).map(p => ({
+                                        schedule={getFullGridForClassroom(room.id).map(p => ({
                                             ...p,
-                                            topLine: printSettings.showCourseName ? p?.topLine : '',
-                                            bottomLine: printSettings.showTeacherName ? p?.bottomLine : ''
-                                        }))}
-                                        type="class"
-                                        editable={false}
-                                    />
-                                </div>
-                            ))
-                    ) : printType === 'teacher' ? (
-                        teachers
-                            .filter(t => t.id !== 'none')
-                            .filter(t => {
-                                if (!printFilter) return true;
-                                if (printFilter.type === 'category') {
-                                    const cat = printFilter.value;
-                                    const homeroomTeacherIds = new Set(classes.map(c => c.teacherId).filter(id => id));
-                                    if (cat === 'homeroom') return homeroomTeacherIds.has(t.id);
-                                    if (cat === 'subject') return !homeroomTeacherIds.has(t.id) && !t.name.includes('主任') && !t.name.includes('校長');
-                                    if (cat === 'admin') return t.name.includes('主任') || t.name.includes('校長') || t.name.includes('組長');
-                                }
-                                return true;
-                            })
-                            .map(t => (
-                                <div key={t.id} className="print-page-break">
-                                    <h1 className="print-report-title">{formatPrintTitle(printSettings.titleTemplate, t)}</h1>
-                                    <ScheduleGrid
-                                        schedule={getFullGridForTeacher(t.id).map(p => ({
-                                            ...p,
-                                            topLine: printSettings.showCourseName ? p?.topLine : '',
-                                            bottomLine: printSettings.showClassName ? p?.bottomLine : ''
+                                            topLine: printSettings.showClassName ? p?.topLine : '',
+                                            bottomLine: printSettings.showCourseName ? p?.bottomLine : ''
                                         }))}
                                         type="teacher"
                                         editable={false}
                                     />
                                 </div>
                             ))
-                    ) : (
-                        classrooms.map(room => (
-                            <div key={room.id} className="print-page-break">
-                                <h1 className="print-report-title">{formatPrintTitle(printSettings.titleTemplate, { ...room, grade: '' })}</h1>
-                                <ScheduleGrid
-                                    schedule={getFullGridForClassroom(room.id).map(p => ({
-                                        ...p,
-                                        topLine: printSettings.showClassName ? p?.topLine : '',
-                                        bottomLine: printSettings.showCourseName ? p?.bottomLine : ''
-                                    }))}
-                                    type="teacher"
-                                    editable={false}
-                                />
-                            </div>
-                        ))
-                    )}
-                </div>
-            )}
+                        )}
+                    </div>
+                )
+            }
 
             <PrintSettingsModal
                 show={showPrintModal}
@@ -1830,53 +2026,55 @@ function AutoSchedule() {
             />
 
             {/* Snapshot Manager Modal */}
-            {showSnapshotManager && (
-                <SnapshotManager
-                    currentRequirements={requirements}
-                    currentSchedules={bestSolution.length > 0 ? classes.map(cls => {
-                        const classGenes = bestSolution.filter(g => g.classId === cls.id);
-                        // Ensure each slot is a unique object reference and contains no undefined
-                        const periods = Array.from({ length: 35 }, () => ({ courseId: null, teacherId: null }));
-                        classGenes.forEach(g => {
-                            if (g.periodIndex >= 0 && g.periodIndex < 35) {
-                                periods[g.periodIndex] = {
-                                    courseId: g.courseId || null,
-                                    teacherId: g.teacherId || null
-                                };
-                            }
-                        });
-                        return { classId: cls.id, periods };
-                    }) : null}
-                    onRestore={(snapshot) => {
-                        // Restore requirements
-                        if (snapshot.requirements) {
-                            setRequirements(snapshot.requirements);
-                        }
-                        // Restore schedules (set as best solution for preview/save)
-                        if (snapshot.schedules) {
-                            const genes = [];
-                            snapshot.schedules.forEach(sch => {
-                                sch.periods.forEach((p, idx) => {
-                                    if (p.courseId) {
-                                        genes.push({
-                                            classId: sch.classId,
-                                            periodIndex: idx,
-                                            courseId: p.courseId,
-                                            teacherId: p.teacherId
-                                        });
-                                    }
-                                });
+            {
+                showSnapshotManager && (
+                    <SnapshotManager
+                        currentRequirements={requirements}
+                        currentSchedules={bestSolution.length > 0 ? classes.map(cls => {
+                            const classGenes = bestSolution.filter(g => g.classId === cls.id);
+                            // Ensure each slot is a unique object reference and contains no undefined
+                            const periods = Array.from({ length: 35 }, () => ({ courseId: null, teacherId: null }));
+                            classGenes.forEach(g => {
+                                if (g.periodIndex >= 0 && g.periodIndex < 35) {
+                                    periods[g.periodIndex] = {
+                                        courseId: g.courseId || null,
+                                        teacherId: g.teacherId || null
+                                    };
+                                }
                             });
-                            setBestSolution(genes);
-                            setProgress({ generation: 0, score: 1000000 }); // High score for restored snapshot
-                            alert(`已載入快照「${snapshot.name}」，您可以預覽並點擊「儲存課表」正式套用。`);
-                        }
-                    }}
-                    onCompare={handleCompareSnapshot}
-                    onClose={() => setShowSnapshotManager(false)}
-                />
-            )}
-        </div>
+                            return { classId: cls.id, periods };
+                        }) : null}
+                        onRestore={(snapshot) => {
+                            // Restore requirements
+                            if (snapshot.requirements) {
+                                setRequirements(snapshot.requirements);
+                            }
+                            // Restore schedules (set as best solution for preview/save)
+                            if (snapshot.schedules) {
+                                const genes = [];
+                                snapshot.schedules.forEach(sch => {
+                                    sch.periods.forEach((p, idx) => {
+                                        if (p.courseId) {
+                                            genes.push({
+                                                classId: sch.classId,
+                                                periodIndex: idx,
+                                                courseId: p.courseId,
+                                                teacherId: p.teacherId
+                                            });
+                                        }
+                                    });
+                                });
+                                setBestSolution(genes);
+                                setProgress({ generation: 0, score: 1000000 }); // High score for restored snapshot
+                                alert(`已載入快照「${snapshot.name}」，您可以預覽並點擊「儲存課表」正式套用。`);
+                            }
+                        }}
+                        onCompare={handleCompareSnapshot}
+                        onClose={() => setShowSnapshotManager(false)}
+                    />
+                )
+            }
+        </div >
     );
 }
 

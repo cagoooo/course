@@ -70,84 +70,97 @@
 /* ═══ Grade-Tabbed Class Selector ═══ */
 .grade-tabs {
     display: flex;
-    gap: 6px;
-    margin-bottom: 8px;
+    gap: 8px;
+    margin-bottom: 10px;
     flex-wrap: wrap;
+    align-items: center;
 }
 
 .grade-tab {
-    padding: 6px 16px;
-    border: 2px solid #e2e8f0;
-    border-radius: 20px;
-    background: #fff;
+    padding: 7px 18px;
+    border: 2px solid rgba(99, 102, 241, 0.2);
+    border-radius: 24px;
+    background: linear-gradient(135deg, #f8faff 0%, #eef2ff 100%);
     font-size: 0.85rem;
-    font-weight: 600;
-    color: #64748b;
+    font-weight: 700;
+    color: #4f46e5;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    box-shadow: 0 2px 6px rgba(99, 102, 241, 0.08);
+    letter-spacing: 0.01em;
 }
 
 .grade-tab:hover {
     border-color: #6366f1;
-    color: #6366f1;
-    background: #eef2ff;
+    color: #4f46e5;
+    background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
+    transform: translateY(-2px) scale(1.04);
+    box-shadow: 0 6px 16px rgba(99, 102, 241, 0.25);
 }
 
 .grade-tab.active {
-    background: linear-gradient(135deg, #6366f1, #818cf8);
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a78bfa 100%);
     color: white;
-    border-color: #6366f1;
-    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+    border-color: transparent;
+    box-shadow: 0 4px 16px rgba(99, 102, 241, 0.45), 0 0 0 3px rgba(99, 102, 241, 0.15);
+    transform: translateY(-1px);
 }
 
 .class-pills {
     display: flex;
-    gap: 6px;
+    gap: 8px;
     flex-wrap: wrap;
+    align-items: center;
 }
 
 .class-pill {
-    padding: 6px 14px;
-    border: 1px solid #e2e8f0;
-    border-radius: 8px;
-    background: #f8fafc;
-    font-size: 0.82rem;
-    font-weight: 500;
-    color: #475569;
+    padding: 6px 16px;
+    border: 1.5px solid rgba(99, 102, 241, 0.25);
+    border-radius: 10px;
+    background: linear-gradient(135deg, #fafbff 0%, #f1f5ff 100%);
+    font-size: 0.83rem;
+    font-weight: 600;
+    color: #4f46e5;
     cursor: pointer;
-    transition: all 0.15s;
+    transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    box-shadow: 0 1px 4px rgba(99, 102, 241, 0.08);
 }
 
 .class-pill:hover {
-    background: #eef2ff;
-    border-color: #a5b4fc;
-    transform: translateY(-1px);
+    background: linear-gradient(135deg, #e0e7ff 0%, #ddd6fe 100%);
+    border-color: #818cf8;
+    transform: translateY(-3px) scale(1.05);
+    box-shadow: 0 6px 18px rgba(99, 102, 241, 0.3);
+    color: #3730a3;
 }
 
 .class-pill.active {
-    background: #6366f1;
+    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #9333ea 100%);
     color: white;
-    border-color: #6366f1;
-    font-weight: 700;
-    box-shadow: 0 2px 6px rgba(99, 102, 241, 0.25);
+    border-color: transparent;
+    font-weight: 800;
+    box-shadow: 0 4px 18px rgba(79, 70, 229, 0.5), 0 0 0 3px rgba(79, 70, 229, 0.15);
+    transform: translateY(-2px) scale(1.06);
+    letter-spacing: 0.02em;
 }
 
 @media (max-width: 600px) {
     .grade-tabs {
-        gap: 4px;
+        gap: 5px;
     }
 
     .grade-tab {
-        padding: 5px 10px;
+        padding: 5px 12px;
         font-size: 0.78rem;
     }
 
     .class-pills {
-        gap: 4px;
+        gap: 5px;
     }
 
     .class-pill {
         padding: 5px 10px;
         font-size: 0.75rem;
+        border-radius: 8px;
     }
 }

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+﻿import React, { useState, useRef } from 'react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import ScheduleGrid from './ScheduleGrid';
@@ -157,51 +157,104 @@ const ExportPanel = ({ classes, teachers, courses, bestSolution, classrooms, onB
     };
 
     return (
-        <div className="export-panel" style={{ padding: '20px' }}>
-            <h3 style={{ marginTop: 0 }}>🖨️ 列印/匯出中心</h3>
-            <p className="text-secondary" style={{ marginBottom: '20px' }}>
-                系統將會自動依據類別分頁彙整為單一 PDF 檔案 (A4)。
-            </p>
+        <div style={{ padding: '20px' }}>
+            {/* ===== Header ===== */}
+            <div style={{
+                display: 'flex', alignItems: 'center', gap: '14px',
+                marginBottom: '8px',
+            }}>
+                <div style={{
+                    width: '48px', height: '48px', flexShrink: 0,
+                    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                    borderRadius: '14px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '24px',
+                    boxShadow: '0 6px 20px rgba(99,102,241,0.35)',
+                }}>🖨️</div>
+                <div>
+                    <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#312e81' }}>列印 / 匯出中心</h3>
+                    <p style={{ margin: 0, fontSize: '0.8rem', color: '#6b7280' }}>自動依類別分頁彙整為單一 PDF 檔案 (A4 格式)</p>
+                </div>
+            </div>
 
+            {/* ===== Loading Bar ===== */}
             {generating && (
                 <div style={{
-                    backgroundColor: '#eff6ff',
+                    background: 'linear-gradient(90deg, #eff6ff, #dbeafe)',
                     color: '#1d4ed8',
-                    padding: '12px',
-                    borderRadius: '8px',
+                    padding: '12px 16px',
+                    borderRadius: '12px',
                     marginBottom: '20px',
                     border: '1px solid #bfdbfe',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px'
+                    display: 'flex', alignItems: 'center', gap: '10px',
+                    fontWeight: 600, fontSize: '0.9rem',
                 }}>
-                    <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                    <span>⏳ {statusText}</span>
+                    <span style={{ display: 'inline-block', width: '16px', height: '16px', border: '2px solid #3b82f6', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                    ⏳ {statusText}
                 </div>
             )}
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
-                {/* 班級課表 */}
-                <div className="card" style={{ padding: '15px' }}>
-                    <h4 style={{ borderBottom: '2px solid #3b82f6', paddingBottom: '8px', marginBottom: '15px', color: '#1e40af' }}>
-                        📚 班級課表 (分年級)
-                    </h4>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                        <button
-                            className="btn btn-outline-primary"
-                            disabled={generating}
-                            onClick={() => onBatchPrint ? onBatchPrint('class', null) : alert('請使用批次列印功能')}
-                            style={{ minWidth: '100%', marginBottom: '10px' }}
-                        >
-                            👨‍👩‍👧‍👦 全體班級 (分頁彙整)
-                        </button>
+            {/* ===== Three Cards Grid ===== */}
+            <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+                gap: '18px',
+                marginTop: '16px',
+            }}>
+
+                {/* ── Card 1: 班級課表 ── */}
+                <div style={{
+                    background: 'linear-gradient(145deg, #eff6ff 0%, #dbeafe 100%)',
+                    borderRadius: '18px',
+                    padding: '20px',
+                    border: '1.5px solid rgba(59,130,246,0.25)',
+                    boxShadow: '0 4px 20px rgba(59,130,246,0.12)',
+                }}>
+                    {/* Card Header */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px', borderBottom: '2px solid rgba(59,130,246,0.3)', paddingBottom: '12px' }}>
+                        <div style={{ width: '36px', height: '36px', background: 'linear-gradient(135deg, #3b82f6, #6366f1)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', flexShrink: 0, boxShadow: '0 3px 10px rgba(59,130,246,0.3)' }}>📚</div>
+                        <div>
+                            <div style={{ fontWeight: 700, color: '#1e40af', fontSize: '0.95rem' }}>班級課表</div>
+                            <div style={{ fontSize: '0.72rem', color: '#3b82f6' }}>依年級分頁匯出</div>
+                        </div>
+                    </div>
+                    {/* Full Button */}
+                    <button
+                        disabled={generating}
+                        onClick={() => onBatchPrint ? onBatchPrint('class', null) : alert('請使用批次列印功能')}
+                        style={{
+                            width: '100%', padding: '10px',
+                            background: 'linear-gradient(135deg, #3b82f6, #6366f1)',
+                            color: 'white', border: 'none', borderRadius: '10px',
+                            fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem',
+                            marginBottom: '12px',
+                            boxShadow: '0 4px 12px rgba(59,130,246,0.35)',
+                            transition: 'transform 0.15s, box-shadow 0.15s',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 20px rgba(59,130,246,0.4)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(59,130,246,0.35)'; }}
+                    >
+                        👨‍👩‍👧‍👦 全體班級（分頁彙整）
+                    </button>
+                    {/* Grade Pills */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                         {[1, 2, 3, 4, 5, 6].map(g => (
                             <button
                                 key={g}
-                                className="btn btn-outline-primary"
                                 disabled={generating}
                                 onClick={() => onBatchPrint ? onBatchPrint('class', { type: 'grade', value: g }) : handleExportGrade(g)}
-                                style={{ minWidth: '80px' }}
+                                style={{
+                                    padding: '5px 12px',
+                                    background: 'white',
+                                    color: '#2563eb',
+                                    border: '1.5px solid #93c5fd',
+                                    borderRadius: '20px',
+                                    fontWeight: 600, cursor: 'pointer', fontSize: '0.8rem',
+                                    transition: 'all 0.15s',
+                                    boxShadow: '0 2px 6px rgba(59,130,246,0.1)',
+                                }}
+                                onMouseEnter={e => { e.currentTarget.style.background = '#3b82f6'; e.currentTarget.style.color = 'white'; e.currentTarget.style.borderColor = '#3b82f6'; }}
+                                onMouseLeave={e => { e.currentTarget.style.background = 'white'; e.currentTarget.style.color = '#2563eb'; e.currentTarget.style.borderColor = '#93c5fd'; }}
                             >
                                 📄 {g} 年級
                             </button>
@@ -209,57 +262,97 @@ const ExportPanel = ({ classes, teachers, courses, bestSolution, classrooms, onB
                     </div>
                 </div>
 
-                {/* 教師課表 */}
-                <div className="card" style={{ padding: '15px' }}>
-                    <h4 style={{ borderBottom: '2px solid #10b981', paddingBottom: '8px', marginBottom: '15px', color: '#047857' }}>
-                        👨‍🏫 教師課表
-                    </h4>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                        <button
-                            className="btn btn-outline-success"
-                            disabled={generating}
-                            onClick={() => onBatchPrint ? onBatchPrint('teacher', null) : handleExportTeachers('all')}
-                        >
-                            👨‍🏫 全體教師 (彙整)
-                        </button>
-                        <button
-                            className="btn btn-outline-success"
-                            disabled={generating}
-                            onClick={() => onBatchPrint ? onBatchPrint('teacher', { type: 'category', value: 'homeroom' }) : handleExportTeachers('homeroom')}
-                        >
-                            📋 導師
-                        </button>
-                        <button
-                            className="btn btn-outline-success"
-                            disabled={generating}
-                            onClick={() => onBatchPrint ? onBatchPrint('teacher', { type: 'category', value: 'subject' }) : handleExportTeachers('subject')}
-                        >
-                            🧪 科任教師
-                        </button>
-                        <button
-                            className="btn btn-outline-secondary"
-                            disabled={generating}
-                            onClick={() => onBatchPrint ? onBatchPrint('teacher', { type: 'category', value: 'admin' }) : handleExportTeachers('admin')}
-                        >
-                            💼 行政教師
-                        </button>
+                {/* ── Card 2: 教師課表 ── */}
+                <div style={{
+                    background: 'linear-gradient(145deg, #f0fdf4 0%, #dcfce7 100%)',
+                    borderRadius: '18px',
+                    padding: '20px',
+                    border: '1.5px solid rgba(34,197,94,0.25)',
+                    boxShadow: '0 4px 20px rgba(34,197,94,0.12)',
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px', borderBottom: '2px solid rgba(34,197,94,0.3)', paddingBottom: '12px' }}>
+                        <div style={{ width: '36px', height: '36px', background: 'linear-gradient(135deg, #22c55e, #16a34a)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', flexShrink: 0, boxShadow: '0 3px 10px rgba(34,197,94,0.3)' }}>👨‍🏫</div>
+                        <div>
+                            <div style={{ fontWeight: 700, color: '#166534', fontSize: '0.95rem' }}>教師課表</div>
+                            <div style={{ fontSize: '0.72rem', color: '#16a34a' }}>依類別分頁匯出</div>
+                        </div>
+                    </div>
+                    <button
+                        disabled={generating}
+                        onClick={() => onBatchPrint ? onBatchPrint('teacher', null) : handleExportTeachers('all')}
+                        style={{
+                            width: '100%', padding: '10px',
+                            background: 'linear-gradient(135deg, #22c55e, #16a34a)',
+                            color: 'white', border: 'none', borderRadius: '10px',
+                            fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem',
+                            marginBottom: '12px',
+                            boxShadow: '0 4px 12px rgba(34,197,94,0.35)',
+                            transition: 'transform 0.15s, box-shadow 0.15s',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 20px rgba(34,197,94,0.4)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(34,197,94,0.35)'; }}
+                    >
+                        👨‍🏫 全體教師（彙整）
+                    </button>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                        {[
+                            { label: '📋 導師', value: 'homeroom' },
+                            { label: '🧪 科任教師', value: 'subject' },
+                            { label: '💼 行政教師', value: 'admin' },
+                        ].map(cat => (
+                            <button
+                                key={cat.value}
+                                disabled={generating}
+                                onClick={() => onBatchPrint ? onBatchPrint('teacher', { type: 'category', value: cat.value }) : handleExportTeachers(cat.value)}
+                                style={{
+                                    padding: '5px 12px',
+                                    background: 'white', color: '#15803d',
+                                    border: '1.5px solid #86efac',
+                                    borderRadius: '20px',
+                                    fontWeight: 600, cursor: 'pointer', fontSize: '0.8rem',
+                                    transition: 'all 0.15s',
+                                    boxShadow: '0 2px 6px rgba(34,197,94,0.1)',
+                                }}
+                                onMouseEnter={e => { e.currentTarget.style.background = '#22c55e'; e.currentTarget.style.color = 'white'; e.currentTarget.style.borderColor = '#22c55e'; }}
+                                onMouseLeave={e => { e.currentTarget.style.background = 'white'; e.currentTarget.style.color = '#15803d'; e.currentTarget.style.borderColor = '#86efac'; }}
+                            >
+                                {cat.label}
+                            </button>
+                        ))}
                     </div>
                 </div>
 
-                {/* 專科教室 */}
-                <div className="card" style={{ padding: '15px' }}>
-                    <h4 style={{ borderBottom: '2px solid #f59e0b', paddingBottom: '8px', marginBottom: '15px', color: '#b45309' }}>
-                        🏫 空間課表
-                    </h4>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                        <button
-                            className="btn btn-outline-warning"
-                            disabled={generating}
-                            onClick={() => onBatchPrint ? onBatchPrint('classroom', null) : handleExportClassrooms()}
-                        >
-                            🎹 專科教室 (彙整)
-                        </button>
+                {/* ── Card 3: 空間課表 ── */}
+                <div style={{
+                    background: 'linear-gradient(145deg, #fffbeb 0%, #fef3c7 100%)',
+                    borderRadius: '18px',
+                    padding: '20px',
+                    border: '1.5px solid rgba(245,158,11,0.25)',
+                    boxShadow: '0 4px 20px rgba(245,158,11,0.12)',
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px', borderBottom: '2px solid rgba(245,158,11,0.3)', paddingBottom: '12px' }}>
+                        <div style={{ width: '36px', height: '36px', background: 'linear-gradient(135deg, #f59e0b, #d97706)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', flexShrink: 0, boxShadow: '0 3px 10px rgba(245,158,11,0.3)' }}>🏫</div>
+                        <div>
+                            <div style={{ fontWeight: 700, color: '#92400e', fontSize: '0.95rem' }}>空間課表</div>
+                            <div style={{ fontSize: '0.72rem', color: '#d97706' }}>專科教室使用情況</div>
+                        </div>
                     </div>
+                    <button
+                        disabled={generating}
+                        onClick={() => onBatchPrint ? onBatchPrint('classroom', null) : handleExportClassrooms()}
+                        style={{
+                            width: '100%', padding: '10px',
+                            background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                            color: 'white', border: 'none', borderRadius: '10px',
+                            fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem',
+                            boxShadow: '0 4px 12px rgba(245,158,11,0.35)',
+                            transition: 'transform 0.15s, box-shadow 0.15s',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 20px rgba(245,158,11,0.4)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(245,158,11,0.35)'; }}
+                    >
+                        🎹 專科教室（彙整）
+                    </button>
                 </div>
             </div>
 
@@ -274,8 +367,6 @@ const ExportPanel = ({ classes, teachers, courses, bestSolution, classrooms, onB
                             <div style={{ marginBottom: '20px', textAlign: 'center', fontSize: '16px', borderBottom: '2px solid #000', paddingBottom: '15px' }}>
                                 {previewData.type === 'class' ? `導師：${renderName(previewData.data.homeroomTeacher) || '__________'}` : '113學年度 下學期'}
                             </div>
-
-                            {/* We use a specialized "print-mode" grid or standard one with overrides */}
                             <div className="print-grid-container" style={{ border: '2px solid #000', borderRadius: '4px', overflow: 'hidden' }}>
                                 <ScheduleGrid
                                     schedule={previewData.schedule}
@@ -284,7 +375,6 @@ const ExportPanel = ({ classes, teachers, courses, bestSolution, classrooms, onB
                                     showPeriods={true}
                                 />
                             </div>
-
                             <div style={{ marginTop: '20px', textAlign: 'right', fontSize: '12px', color: '#666' }}>
                                 產出日期：{new Date().toLocaleDateString()}
                             </div>
