@@ -240,9 +240,21 @@ function AutoSchedule() {
                 if (type === 'PROGRESS') {
                     setProgress({
                         generation: payload.generation,
-                        score: payload.bestScore
+                        score: payload.bestScore,
+                        stagnation: payload.stagnation || 0,
+                        mutationRate: payload.mutationRate || 0
                     });
                     setBestSolution(payload.bestSolution);
+                } else if (type === 'CONVERGED') {
+                    setProgress({
+                        generation: payload.generation,
+                        score: payload.bestScore,
+                        stagnation: 0,
+                        mutationRate: 0
+                    });
+                    setBestSolution(payload.bestSolution);
+                    setStatus('stopped');
+                    alert(payload.message);
                 }
             };
         }
@@ -267,7 +279,7 @@ function AutoSchedule() {
             type: 'START',
             payload: {
                 data: safeData,
-                config: { populationSize: 50, mutationRate: 0.1 }
+                config: { populationSize: 80, mutationRate: 0.02 }
             }
         });
     };

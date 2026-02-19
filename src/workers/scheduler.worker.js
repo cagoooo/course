@@ -8,15 +8,13 @@ self.onmessage = (e) => {
 
     if (type === 'START') {
         const { data, config } = payload;
-        console.log('Worker: Starting GA...', config);
+        console.log('Worker: Starting GA v2.0...', config);
 
-        console.log('Worker: Initializing GA engine...');
         ga = new GeneticAlgorithm(config);
-        // Initialize population and generation when starting
-        let population = ga.initPopulation(data); // Fix method name and add let
+        let population = ga.initPopulation(data);
         let generation = 0;
         let lastBestScore = -1;
-        running = true; // Set running to true when starting
+        running = true;
 
         const tick = () => {
             if (!running) return;
@@ -34,9 +32,26 @@ self.onmessage = (e) => {
                         payload: {
                             generation,
                             bestScore: result.bestScore,
-                            bestSolution: result.bestSolution
+                            bestSolution: result.bestSolution,
+                            stagnation: result.stagnation,
+                            mutationRate: result.mutationRate
                         }
                     });
+                }
+
+                // Auto-Stop: Notify convergence after 200 stagnant generations
+                if (result.converged) {
+                    self.postMessage({
+                        type: 'CONVERGED',
+                        payload: {
+                            generation,
+                            bestScore: result.bestScore,
+                            bestSolution: result.bestSolution,
+                            message: `🏁 演算已收斂 (連續 ${result.stagnation} 代無進步)，建議檢視結果。`
+                        }
+                    });
+                    running = false; // Auto-stop
+                    return;
                 }
 
                 setTimeout(tick, 0);
@@ -46,8 +61,11 @@ self.onmessage = (e) => {
             }
         };
 
-        // Start the evolution process
         setTimeout(tick, 0);
-        console.log('Worker: Loop initialized.');
+        console.log('Worker: GA v2.0 loop initialized.');
+    }
+
+    if (type === 'STOP') {
+        running = false;
     }
 };
