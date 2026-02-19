@@ -155,14 +155,17 @@ export class ConstraintChecker {
                         softPenalties += 30;
                     }
                 } else if (courseName.includes('國') || courseName.includes('語')) {
+                    // [HARD] 國語：一天最多兩節
                     const dayCount = {};
                     days.forEach(d => { dayCount[d] = (dayCount[d] || 0) + 1; });
                     for (const [day, count] of Object.entries(dayCount)) {
-                        if (count > 2) softPenalties += (count - 2) * 2000;
+                        if (count > 2) hardPenalties += (count - 2) * 5;
                     }
+                    // [SOFT] 國語盡量分散到不同天
                     if (slots.length >= 5 && uniqueDays.size < 5) {
                         softPenalties += (5 - uniqueDays.size) * 200;
                     }
+                    // [SOFT] 國語盡量排上午
                     slots.forEach(s => {
                         if ((s % 7) >= 4) softPenalties += 50;
                     });
@@ -406,8 +409,23 @@ export class ConstraintChecker {
                     }
                 }
 
-                // Chinese afternoon (soft)
+                // Chinese same-day > 2 (HARD)
                 if (isChinese) {
+                    const cDays = slots.map(s => getDayIndex(s));
+                    const cDayCount = {};
+                    cDays.forEach(d => { cDayCount[d] = (cDayCount[d] || 0) + 1; });
+                    for (const [day, count] of Object.entries(cDayCount)) {
+                        if (count > 2) {
+                            penalties.push({
+                                type: 'chinese_overload',
+                                severity: 'hard',
+                                penalty: 50000,
+                                description: `🔴 ${classId}：國語在${DAY_NAMES[day]}排了 ${count} 節（一天最多兩節）`,
+                                classId
+                            });
+                        }
+                    }
+                    // Chinese afternoon (soft)
                     slots.forEach(s => {
                         if ((s % 7) >= 4) {
                             penalties.push({
