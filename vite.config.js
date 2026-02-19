@@ -15,6 +15,8 @@ export default defineConfig({
             },
             includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
             workbox: {
+                // 允許快取較大的 chunk (exceljs/firebase 拆分後仍可能 >2MB)
+                maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, // 3 MB
                 // 只快取 http/https 請求，排除 chrome-extension:// 等非標準協定
                 navigateFallback: '/course/index.html',
                 navigateFallbackDenylist: [/^\/api/],
@@ -67,6 +69,15 @@ export default defineConfig({
     },
     build: {
         outDir: 'dist',
-        sourcemap: true
+        sourcemap: true,
+        rollupOptions: {
+            output: {
+                manualChunks: {
+                    // 將大型套件拆分為獨立 chunk，避免主 bundle 超過 2MB
+                    exceljs: ['exceljs'],
+                    firebase: ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/storage']
+                }
+            }
+        }
     }
 })
