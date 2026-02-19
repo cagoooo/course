@@ -259,105 +259,119 @@ export class GeneticAlgorithm {
     }
 
     /**
-     * [GA v2.0] Hybrid Mutation: 50% Directed Repair + 50% Random Swap
+     * [GA v2.0] Hybrid Mutation: 30% Math Repair + 35% Directed + 35% Random
      */
     mutate(chromosome) {
         if (Math.random() >= this.mutationRate) return;
-
-        // Group by class
         const classIds = [...new Set(chromosome.map(g => g.classId))];
         const targetClassId = classIds[Math.floor(Math.random() * classIds.length)];
         const classGenes = chromosome.filter(g => g.classId === targetClassId && !g.locked);
-
         if (classGenes.length < 2) return;
 
-        if (Math.random() < 0.5) {
-            // === Directed Mutation: Fix the worst gene ===
+        const roll = Math.random();
+        if (roll < 0.3) {
+            if (!this._repairMathViolations(classGenes)) this._directedMutate(classGenes);
+        } else if (roll < 0.65) {
             this._directedMutate(classGenes);
         } else {
-            // === Random Swap (legacy) ===
             this._randomSwap(classGenes);
         }
     }
 
-    /**
-     * [Directed Mutation] Find the gene with highest penalty and try to move it to a better slot.
-     */
+    /** [Math Repair] Fix math afternoon or same-day violations. */
+    _repairMathViolations(classGenes) {
+        const mathGenes = classGenes.filter(g => {
+            const n = this.courseNameMap?.get(g.courseId) || '';
+            return n.includes('數');
+        });
+        if (mathGenes.length === 0) return false;
+
+        // Fix 1: afternoon math → swap to morning
+        const badMath = mathGenes.find(g => getTimeSlotIndex(g.periodIndex) >= 4);
+        if (badMath) {
+            const ok = classGenes.filter(g => {
+                if (g.locked || getTimeSlotIndex(g.periodIndex) >= 4) return false;
+                const n = this.courseNameMap?.get(g.courseId) || '';
+                if (n.includes('數')) return false;
+                if (n.includes('體') && (getTimeSlotIndex(badMath.periodIndex) === 3 || getTimeSlotIndex(badMath.periodIndex) === 4)) return false;
+                return true;
+            });
+            if (ok.length > 0) {
+                const s = ok[Math.floor(Math.random() * ok.length)];
+                const t = badMath.periodIndex; badMath.periodIndex = s.periodIndex; s.periodIndex = t;
+                return true;
+            }
+        }
+
+        // Fix 2: same-day duplicates → move to unused day morning
+        const mathDays = {};
+        mathGenes.forEach(g => { const d = getDayIndex(g.periodIndex); (mathDays[d] = mathDays[d] || []).push(g); });
+        for (const [day, genes] of Object.entries(mathDays)) {
+            if (genes.length > 1) {
+                const usedDays = new Set(mathGenes.map(g => getDayIndex(g.periodIndex)));
+                const move = genes[1];
+                const ok = classGenes.filter(g => {
+                    if (g.locked) return false;
+                    const d = getDayIndex(g.periodIndex);
+                    if (d === parseInt(day) || usedDays.has(d)) return false;
+                    if (getTimeSlotIndex(g.periodIndex) >= 4) return false;
+                    const n = this.courseNameMap?.get(g.courseId) || '';
+                    return !n.includes('數');
+                });
+                if (ok.length > 0) {
+                    const s = ok[Math.floor(Math.random() * ok.length)];
+                    const t = move.periodIndex; move.periodIndex = s.periodIndex; s.periodIndex = t;
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** [Directed Mutation] Fix worst penalty gene. */
     _directedMutate(classGenes) {
-        // Score each gene individually to find the worst one
-        let worstGene = null;
-        let worstPenalty = -1;
-
+        let worstGene = null, worstPenalty = -1;
         for (const gene of classGenes) {
-            const courseName = this.courseNameMap?.get(gene.courseId) || '';
-            const timeSlot = getTimeSlotIndex(gene.periodIndex);
-            let penalty = 0;
-
-            // Check known penalty conditions
-            if ((courseName.includes('國') || courseName.includes('語') || courseName.includes('數')) && timeSlot >= 4) {
-                penalty += 50;
+            const cn = this.courseNameMap?.get(gene.courseId) || '';
+            const ts = getTimeSlotIndex(gene.periodIndex);
+            let p = 0;
+            if (cn.includes('數') && ts >= 4) p += 50000;
+            if (cn.includes('數')) {
+                const d = getDayIndex(gene.periodIndex);
+                if (classGenes.some(g => g !== gene && getDayIndex(g.periodIndex) === d && (this.courseNameMap?.get(g.courseId) || '').includes('數'))) p += 50000;
             }
-            if (courseName.includes('體') && (timeSlot === 3 || timeSlot === 4)) {
-                penalty += 5000;
-            }
-            if ((courseName.includes('美') || courseName.includes('藝')) && timeSlot < 4) {
-                penalty += 50;
-            }
-
-            if (penalty > worstPenalty) {
-                worstPenalty = penalty;
-                worstGene = gene;
-            }
+            if (cn.includes('體') && (ts === 3 || ts === 4)) p += 5000;
+            if ((cn.includes('國') || cn.includes('語')) && ts >= 4) p += 50;
+            if ((cn.includes('美') || cn.includes('藝')) && ts < 4) p += 50;
+            if (p > worstPenalty) { worstPenalty = p; worstGene = gene; }
         }
+        if (!worstGene || worstPenalty <= 0) { this._randomSwap(classGenes); return; }
 
-        if (!worstGene || worstPenalty <= 0) {
-            // No obvious bad gene → fallback to random swap
-            this._randomSwap(classGenes);
-            return;
-        }
-
-        // Try to find a gene in a "good" slot to swap with
         const candidates = classGenes.filter(g => {
             if (g === worstGene || g.locked) return false;
-            const courseName = this.courseNameMap?.get(g.courseId) || '';
-            const ts = getTimeSlotIndex(g.periodIndex);
-            // Only swap with genes that won't suffer much from being moved
-            const isCoreSubject = courseName.includes('國') || courseName.includes('語') || courseName.includes('數');
-            const isPE = courseName.includes('體');
-            // Avoid making a good gene worse
-            const worstTs = getTimeSlotIndex(worstGene.periodIndex);
-            if (isCoreSubject && worstTs >= 4) return false; // Don't push core to afternoon
-            if (isPE && (worstTs === 3 || worstTs === 4)) return false; // Don't push PE to midday
+            const cn = this.courseNameMap?.get(g.courseId) || '';
+            const wts = getTimeSlotIndex(worstGene.periodIndex);
+            if (cn.includes('數') && wts >= 4) return false;
+            if ((cn.includes('國') || cn.includes('語')) && wts >= 4) return false;
+            if (cn.includes('體') && (wts === 3 || wts === 4)) return false;
             return true;
         });
-
         if (candidates.length > 0) {
-            const swapTarget = candidates[Math.floor(Math.random() * candidates.length)];
-            const temp = worstGene.periodIndex;
-            worstGene.periodIndex = swapTarget.periodIndex;
-            swapTarget.periodIndex = temp;
+            const s = candidates[Math.floor(Math.random() * candidates.length)];
+            const t = worstGene.periodIndex; worstGene.periodIndex = s.periodIndex; s.periodIndex = t;
         }
     }
 
-    /**
-     * Classic random swap mutation.
-     */
+    /** Classic random swap mutation. */
     _randomSwap(classGenes) {
-        const idxA = Math.floor(Math.random() * classGenes.length);
-        let idxB = Math.floor(Math.random() * classGenes.length);
-        let safety = 0;
-        while (idxB === idxA && safety < 20) {
-            idxB = Math.floor(Math.random() * classGenes.length);
-            safety++;
-        }
-
-        const geneA = classGenes[idxA];
-        const geneB = classGenes[idxB];
-
-        if (!geneA.locked && !geneB.locked) {
-            const temp = geneA.periodIndex;
-            geneA.periodIndex = geneB.periodIndex;
-            geneB.periodIndex = temp;
+        const a = Math.floor(Math.random() * classGenes.length);
+        let b = Math.floor(Math.random() * classGenes.length);
+        let s = 0;
+        while (b === a && s < 20) { b = Math.floor(Math.random() * classGenes.length); s++; }
+        if (!classGenes[a].locked && !classGenes[b].locked) {
+            const t = classGenes[a].periodIndex;
+            classGenes[a].periodIndex = classGenes[b].periodIndex;
+            classGenes[b].periodIndex = t;
         }
     }
 }

@@ -167,15 +167,15 @@ export class ConstraintChecker {
                         if ((s % 7) >= 4) softPenalties += 50;
                     });
                 } else if (courseName.includes('數')) {
-                    // [HARD] 數學：一天只能一節
+                    // [HARD] 數學：一天只能一節 → hardPenalties
                     const dayCount = {};
                     days.forEach(d => { dayCount[d] = (dayCount[d] || 0) + 1; });
                     for (const [day, count] of Object.entries(dayCount)) {
-                        if (count > 1) softPenalties += (count - 1) * 5000; // 近硬性約束
+                        if (count > 1) hardPenalties += (count - 1) * 5;
                     }
-                    // [HARD] 數學：禁止排在下午（第5-7節）
+                    // [HARD] 數學：禁止排在下午（第5-7節）→ hardPenalties
                     slots.forEach(s => {
-                        if ((s % 7) >= 4) softPenalties += 5000; // 近硬性約束
+                        if ((s % 7) >= 4) hardPenalties += 5;
                     });
                 } else {
                     if (uniqueDays.size < slots.length) {
