@@ -259,23 +259,85 @@ export class GeneticAlgorithm {
     }
 
     /**
-     * [GA v2.0] Hybrid Mutation: 30% Math Repair + 35% Directed + 35% Random
+     * [GA v3.0] Hybrid Mutation: 30% Teacher Repair + 20% Math Repair + 25% Directed + 25% Random
      */
     mutate(chromosome) {
         if (Math.random() >= this.mutationRate) return;
+
+        const roll = Math.random();
+
+        // Highest priority: teacher conflict repair (operates across ALL classes)
+        if (roll < 0.3) {
+            if (this._repairTeacherConflicts(chromosome)) return;
+        }
+
+        // Per-class mutations
         const classIds = [...new Set(chromosome.map(g => g.classId))];
         const targetClassId = classIds[Math.floor(Math.random() * classIds.length)];
         const classGenes = chromosome.filter(g => g.classId === targetClassId && !g.locked);
         if (classGenes.length < 2) return;
 
-        const roll = Math.random();
-        if (roll < 0.3) {
+        if (roll < 0.5) {
             if (!this._repairMathViolations(classGenes)) this._directedMutate(classGenes);
-        } else if (roll < 0.65) {
+        } else if (roll < 0.75) {
             this._directedMutate(classGenes);
         } else {
             this._randomSwap(classGenes);
         }
+    }
+
+    /** [Teacher Repair] Fix teacher double-bookings across all classes. */
+    _repairTeacherConflicts(chromosome) {
+        // Build teacher → period → genes map
+        const teacherSlots = {};
+        chromosome.forEach(g => {
+            if (!g.teacherId) return;
+            const key = `${g.teacherId}_${g.periodIndex}`;
+            if (!teacherSlots[key]) teacherSlots[key] = [];
+            teacherSlots[key].push(g);
+        });
+
+        // Find conflicts
+        for (const [, genes] of Object.entries(teacherSlots)) {
+            if (genes.length <= 1) continue;
+
+            // Found a conflict! Move one gene to a free slot in its class
+            const moveGene = genes.find(g => !g.locked) || genes[0];
+            if (moveGene.locked) continue;
+
+            // Find all occupied slots in this class
+            const classGenes = chromosome.filter(g => g.classId === moveGene.classId);
+            const occupiedSlots = new Set(classGenes.map(g => g.periodIndex));
+
+            // Find free morning slots first, then any free slot
+            const freeSlots = [];
+            for (let i = 0; i < 35; i++) {
+                if (!occupiedSlots.has(i)) freeSlots.push(i);
+            }
+
+            if (freeSlots.length > 0) {
+                // Prefer swapping with another gene rather than moving to empty
+                const swapCandidates = classGenes.filter(g => {
+                    if (g === moveGene || g.locked) return false;
+                    // Check if swapping would NOT create a new teacher conflict
+                    const wouldConflict = chromosome.some(other =>
+                        other !== moveGene && other !== g &&
+                        other.teacherId === moveGene.teacherId &&
+                        other.periodIndex === g.periodIndex
+                    );
+                    return !wouldConflict;
+                });
+
+                if (swapCandidates.length > 0) {
+                    const swap = swapCandidates[Math.floor(Math.random() * swapCandidates.length)];
+                    const temp = moveGene.periodIndex;
+                    moveGene.periodIndex = swap.periodIndex;
+                    swap.periodIndex = temp;
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /** [Math Repair] Fix math afternoon or same-day violations. */
