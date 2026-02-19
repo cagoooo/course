@@ -1480,7 +1480,7 @@ function AutoSchedule() {
                                 }, 100);
                             }}
                             onNavigateToTeacher={(teacherId) => {
-                                window.open(`${window.location.pathname.replace(/\/auto$/, '')}/teacher?id=${teacherId}`, '_blank');
+                                window.open(`/course/teacher?id=${teacherId}`, '_blank');
                             }}
                         />
 
