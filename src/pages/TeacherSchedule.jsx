@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
 import { firestoreService } from '../services/firestoreService';
 import { useSemester } from '../contexts/SemesterContext';
 import ScheduleGrid from '../components/ScheduleGrid';
@@ -6,6 +7,7 @@ import './TeacherSchedule.css';
 
 function TeacherSchedule() {
     const { currentSemesterId, loading: semesterLoading } = useSemester();
+    const location = useLocation();
     const [teachers, setTeachers] = useState([]);
     const [courses, setCourses] = useState([]);
     const [classes, setClasses] = useState([]);
@@ -58,8 +60,20 @@ function TeacherSchedule() {
                 name: (typeof c.name === 'object' && c.name !== null) ? (c.name.name || Object.values(c.name)[0]) : c.name
             })));
             setClasses(clList);
-            // Reset selection on semester change
-            setSelectedTeacherId('');
+
+            // Auto-select teacher from URL ?id= parameter
+            const params = new URLSearchParams(location.search);
+            const urlTeacherId = params.get('id');
+            if (urlTeacherId) {
+                const match = processedTeachers.find(t => t.id === urlTeacherId);
+                if (match) {
+                    setSelectedTeacherId(urlTeacherId);
+                } else {
+                    setSelectedTeacherId('');
+                }
+            } else {
+                setSelectedTeacherId('');
+            }
             setScheduleData(null);
             setLoading(false);
         }
