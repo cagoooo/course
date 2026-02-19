@@ -107,6 +107,17 @@ export class ConstraintChecker {
                 const courseName = course ? (typeof course.name === 'string' ? course.name : (course.name?.name || '')) : '';
                 const isBlockSubject = courseName && (courseName.includes('社') || courseName.includes('自'));
                 const isArtSubject = courseName && (courseName.includes('美') || courseName.includes('藝'));
+                const isPESubject = courseName && courseName.includes('體');
+
+                // [PE Midday Avoidance] 體育課避開第四節(index 3)與第五節(index 4)，因為接近中午太熱
+                if (isPESubject) {
+                    slots.forEach(s => {
+                        const timeSlot = s % 7; // 0=第1節, 3=第4節, 4=第5節
+                        if (timeSlot === 3 || timeSlot === 4) {
+                            softPenalties += 5000; // 極重罰分，近乎硬性約束
+                        }
+                    });
+                }
 
                 if (isBlockSubject && slots.length === 3) {
                     // Check for 1+2 pattern: Two consecutive in same day, one in different day
