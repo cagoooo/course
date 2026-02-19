@@ -167,13 +167,15 @@ export class ConstraintChecker {
                         if ((s % 7) >= 4) softPenalties += 50;
                     });
                 } else if (courseName.includes('數')) {
+                    // [HARD] 數學：一天只能一節
                     const dayCount = {};
                     days.forEach(d => { dayCount[d] = (dayCount[d] || 0) + 1; });
                     for (const [day, count] of Object.entries(dayCount)) {
-                        if (count > 1) softPenalties += (count - 1) * 2000;
+                        if (count > 1) softPenalties += (count - 1) * 5000; // 近硬性約束
                     }
+                    // [HARD] 數學：禁止排在下午（第5-7節）
                     slots.forEach(s => {
-                        if ((s % 7) >= 4) softPenalties += 50;
+                        if ((s % 7) >= 4) softPenalties += 5000; // 近硬性約束
                     });
                 } else {
                     if (uniqueDays.size < slots.length) {
@@ -374,8 +376,38 @@ export class ConstraintChecker {
                     });
                 }
 
-                // Chinese/Math afternoon
-                if (isChinese || isMath) {
+                // Math afternoon (HARD)
+                if (isMath) {
+                    slots.forEach(s => {
+                        if ((s % 7) >= 4) {
+                            penalties.push({
+                                type: 'math_afternoon',
+                                severity: 'hard',
+                                penalty: 50000,
+                                description: `🔴 ${classId}：數學排在${this._slotLabel(s)}（數學必須排上午）`,
+                                classId
+                            });
+                        }
+                    });
+                    // Math same-day duplicate
+                    const days = slots.map(s => getDayIndex(s));
+                    const dayCount = {};
+                    days.forEach(d => { dayCount[d] = (dayCount[d] || 0) + 1; });
+                    for (const [day, count] of Object.entries(dayCount)) {
+                        if (count > 1) {
+                            penalties.push({
+                                type: 'math_duplicate',
+                                severity: 'hard',
+                                penalty: 50000,
+                                description: `🔴 ${classId}：數學在${DAY_NAMES[day]}排了 ${count} 節（一天只能一節）`,
+                                classId
+                            });
+                        }
+                    }
+                }
+
+                // Chinese afternoon (soft)
+                if (isChinese) {
                     slots.forEach(s => {
                         if ((s % 7) >= 4) {
                             penalties.push({
