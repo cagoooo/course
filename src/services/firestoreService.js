@@ -1,4 +1,4 @@
-import { db } from '../firebase';
+﻿import { db } from '../firebase';
 import { collection, getDocs, getDoc, doc, setDoc, writeBatch, deleteDoc, query, where } from 'firebase/firestore';
 import { OfflineService } from './db';
 
@@ -22,7 +22,7 @@ export const firestoreService = {
         const semesterRef = doc(db, 'semesters', id);
         const snapshot = await getDoc(semesterRef);
         if (snapshot.exists()) {
-            throw new Error('該學期代碼已存在');
+            throw new Error('閰脣飛?誨蝣澆歇摮');
         }
 
         // Create the semester document
@@ -103,7 +103,7 @@ export const firestoreService = {
             } catch (e) {
                 console.error("Copy failed partial:", e);
                 // We don't rollback semester creation, just alert user via error
-                throw new Error("學期建立成功，但資料複製發生錯誤: " + e.message);
+                throw new Error("摮豢?撱箇???嚗?鞈?銴ˊ?潛??航炊: " + e.message);
             }
         }
     },
@@ -412,7 +412,7 @@ export const firestoreService = {
 
         const snapshotData = {
             id: snapshotRef.id,
-            name: name || `快照 ${new Date().toLocaleString()}`,
+            name: name || `敹怎 ${new Date().toLocaleString()}`,
             createdAt: new Date().toISOString(),
             schedules: cleanSchedules,
             requirements: cleanRequirements
@@ -458,5 +458,39 @@ export const firestoreService = {
         });
 
         return roomGrid;
-    }
+    },
+
+    // ========== 多學期學習 (Multi-Semester Learning) ==========
+
+    /**
+     * 儲存當前學期的最佳染色體（Gene 陣列）到 Firestore
+     * 路徑：semesters/{semesterId}/ai_metadata/best_chromosome
+     * @param {Array}  genes       - bestSolution genes 陣列
+     * @param {string} semesterId
+     */
+    async saveBestChromosome(genes, semesterId) {
+        if (!semesterId || !genes?.length) return;
+        const ref = doc(db, `semesters/${semesterId}/ai_metadata`, 'best_chromosome');
+        await setDoc(ref, {
+            genes,
+            savedAt: new Date().toISOString(),
+            geneCount: genes.length,
+        });
+        console.log(`[SmartSeed] 已儲存最佳染色體（${genes.length} 個基因）至學期 ${semesterId}`);
+    },
+
+    /**
+     * 從 Firestore 載入最佳染色體作為下學期的 smartSeed
+     * @param {string} semesterId - 要載入的（上一）學期 ID
+     * @returns {Array|null} genes 陣列，或 null（若尚未儲存）
+     */
+    async loadBestChromosome(semesterId) {
+        if (!semesterId) return null;
+        const ref = doc(db, `semesters/${semesterId}/ai_metadata`, 'best_chromosome');
+        const snap = await getDoc(ref);
+        if (!snap.exists()) return null;
+        const data = snap.data();
+        console.log(`[SmartSeed] 載入學期 ${semesterId} 的最佳染色體（${data.geneCount} 個基因）`);
+        return data.genes || null;
+    },
 };

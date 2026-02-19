@@ -3,10 +3,11 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import ScheduleGrid from './ScheduleGrid';
 
-const ExportPanel = ({ classes, teachers, courses, bestSolution, classrooms, onBatchPrint }) => {
+const ExportPanel = ({ classes, teachers, courses, bestSolution, classrooms, onBatchPrint, onImport }) => {
     const [generating, setGenerating] = useState(false);
     const [statusText, setStatusText] = useState('');
     const printRef = useRef(null);
+    const importFileRef = useRef(null);
 
     // --- Helper Functions ---
     const renderName = (val) => {
@@ -171,10 +172,43 @@ const ExportPanel = ({ classes, teachers, courses, bestSolution, classrooms, onB
                     fontSize: '24px',
                     boxShadow: '0 6px 20px rgba(99,102,241,0.35)',
                 }}>🖨️</div>
-                <div>
+                <div style={{ flex: 1 }}>
                     <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#312e81' }}>列印 / 匯出中心</h3>
                     <p style={{ margin: 0, fontSize: '0.8rem', color: '#6b7280' }}>自動依類別分頁彙整為單一 PDF 檔案 (A4 格式)</p>
                 </div>
+                {/* 匯入配課表按鈕 */}
+                {onImport && (
+                    <>
+                        <input
+                            ref={importFileRef}
+                            type="file"
+                            accept=".xlsx,.xls"
+                            style={{ display: 'none' }}
+                            onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) onImport(file);
+                                e.target.value = '';
+                            }}
+                        />
+                        <button
+                            onClick={() => importFileRef.current?.click()}
+                            style={{
+                                padding: '8px 16px',
+                                background: 'linear-gradient(135deg, #8b5cf6, #a855f7)',
+                                color: 'white', border: 'none', borderRadius: '10px',
+                                fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer',
+                                display: 'flex', alignItems: 'center', gap: '6px',
+                                boxShadow: '0 4px 12px rgba(139,92,246,0.35)',
+                                whiteSpace: 'nowrap',
+                                transition: 'all 0.2s',
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 18px rgba(139,92,246,0.45)'; }}
+                            onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(139,92,246,0.35)'; }}
+                        >
+                            📥 匯入配課表
+                        </button>
+                    </>
+                )}
             </div>
 
             {/* ===== Loading Bar ===== */}

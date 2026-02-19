@@ -16,6 +16,9 @@ import QualityReport from '../components/QualityReport';
 import ExcelPanel from '../components/ExcelPanel';
 import { DiffService } from '../services/DiffService'; // Import Diff Service
 import { ExcelExporter } from '../utils/excel/ExcelExporter';
+import ImportPreviewModal from '../components/ImportPreviewModal';
+import { parseRequirementsExcel, toRequirements } from '../utils/excel/ExcelImporter';
+import SubstitutePanel from '../components/SubstitutePanel';
 import './AutoSchedule_ProgressBar.css';
 
 
@@ -42,6 +45,20 @@ function AutoSchedule() {
     const [showDiagnostics, setShowDiagnostics] = useState(false);
     const [diagnosticResults, setDiagnosticResults] = useState([]);
     const [printFilter, setPrintFilter] = useState(null); // { type: 'grade' | 'category', value: any }
+
+    // Excel 匯入狀態
+    const [importPreview, setImportPreview] = useState({
+        isOpen: false,
+        matched: [],
+        unmatched: [],
+    });
+
+    // 智慧代課狀態
+    const [showSubstitute, setShowSubstitute] = useState(false);
+
+    // 多學期學習：smart seed
+    const [smartSeedGenes, setSmartSeedGenes] = useState(null); // 上學期最佳染色體
+    const [smartSeedInfo, setSmartSeedInfo] = useState(null);   // { semesterId, geneCount }
 
     const handleRunDiagnostics = () => {
         const results = runDiagnostics(teachers, requirements, classes);
@@ -282,9 +299,40 @@ function AutoSchedule() {
             type: 'START',
             payload: {
                 data: safeData,
-                config: { populationSize: 100, mutationRate: 0.05 }
+                config: { populationSize: 100, mutationRate: 0.05 },
+                smartSeedGenes: smartSeedGenes || null,
             }
         });
+    };
+
+    // --- 多學期學習 Handlers ---
+    const handleSaveSmartSeed = async () => {
+        if (!bestSolution?.length) {
+            alert('請先完成排課再儲存智慧種子。');
+            return;
+        }
+        try {
+            await firestoreService.saveBestChromosome(bestSolution, currentSemesterId);
+            alert(`✅ 已將當前學期 (${currentSemesterId}) 的最佳課表儲存為智慧種子！\n下學期啟動排課時可載入使用。`);
+        } catch (err) {
+            alert(`儲存失敗: ${err.message}`);
+        }
+    };
+
+    const handleLoadSmartSeed = async (semI) => {
+        if (!semI) return;
+        try {
+            const genes = await firestoreService.loadBestChromosome(semI);
+            if (genes) {
+                setSmartSeedGenes(genes);
+                setSmartSeedInfo({ semesterId: semI, geneCount: genes.length });
+                alert(`✅ 已載入學期 (${semI}) 的智慧種子 (${genes.length} 個基因)！下次開始排課時將自動使用。`);
+            } else {
+                alert(`學期 (${semI}) 尚未儲存智慧種子，請先在對應學期排課完成後儲存。`);
+            }
+        } catch (err) {
+            alert(`載入失敗: ${err.message}`);
+        }
     };
 
     const handleStop = () => {
@@ -985,6 +1033,37 @@ function AutoSchedule() {
         setShowPrintModal(true);
     };
 
+    // --- Excel 匯入 Handlers ---
+    const handleImportFile = async (file) => {
+        try {
+            const { matched, unmatched } = await parseRequirementsExcel(file, classes, courses, teachers);
+            setImportPreview({ isOpen: true, matched, unmatched });
+        } catch (err) {
+            alert(`匯入失敗: ${err.message}`);
+        }
+    };
+
+    const handleConfirmImport = async (matched) => {
+        try {
+            const reqs = toRequirements(matched);
+            // 將新匯入的 requirements 合併到現有的 requirements 中
+            const existingReqMap = new Map(
+                requirements.map(r => [`${r.classId}::${r.courseId}::${r.teacherId || ''}`, r])
+            );
+            reqs.forEach(r => {
+                const key = `${r.classId}::${r.courseId}::${r.teacherId || ''}`;
+                existingReqMap.set(key, r);
+            });
+            const mergedReqs = Array.from(existingReqMap.values());
+            await firestoreService.saveRequirements(mergedReqs, currentSemesterId);
+            setRequirements(mergedReqs);
+            setImportPreview({ isOpen: false, matched: [], unmatched: [] });
+            alert(`✅ 成功匯入 ${matched.length} 筆配課資料！`);
+        } catch (err) {
+            alert(`儲存失敗: ${err.message}`);
+        }
+    };
+
     const handleCopyShareLink = () => {
         if (!viewClassId) return;
         const baseUrl = window.location.origin;
@@ -1232,849 +1311,900 @@ function AutoSchedule() {
     };
 
     return (
-        <div className="page-container">
-            <h2 className="page-title">自動排課系統 (Beta)</h2>
+        <>
+            <div className="page-container">
+                <h2 className="page-title">自動排課系統 (Beta)</h2>
 
-            <div className="tabs">
-                <button
-                    className={`tab ${activeTab === 'settings' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('settings')}
-                >
-                    ⚙️ 1. 課表設定
-                </button>
-                <button
-                    className={`tab ${activeTab === 'workload' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('workload')}
-                >
-                    🧑‍🏫 2. 師資配課
-                </button>
-                <button
-                    className={`tab ${activeTab === 'scheduler' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('scheduler')}
-                >
-                    🚀 3. 排課執行
-                </button>
-                <button
-                    className={`tab ${activeTab === 'export' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('export')}
-                >
-                    🖨️ 4. 列印匯出
-                </button>
-            </div>
+                <div className="tabs">
+                    <button
+                        className={`tab ${activeTab === 'settings' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('settings')}
+                    >
+                        ⚙️ 1. 課表設定
+                    </button>
+                    <button
+                        className={`tab ${activeTab === 'workload' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('workload')}
+                    >
+                        🧑‍🏫 2. 師資配課
+                    </button>
+                    <button
+                        className={`tab ${activeTab === 'scheduler' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('scheduler')}
+                    >
+                        🚀 3. 排課執行
+                    </button>
+                    <button
+                        className={`tab ${activeTab === 'export' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('export')}
+                    >
+                        🖨️ 4. 列印匯出
+                    </button>
+                </div>
 
-            {activeTab === 'workload' && (
-                <TeacherWorkloadPanel
-                    teachers={teachers}
-                    courses={courses}
-                    classrooms={classrooms}
-                    classes={classes}
-                    requirements={requirements}
-                    onAddTeacher={handleAddTeacher}
-                    onUpdateTeacher={handleUpdateTeacher}
-                    onDeleteTeacher={handleDeleteTeacher}
-                    onAddCourse={handleAddCourse}
-                    onUpdateCourse={handleUpdateCourse}
-                    onDeleteCourse={handleDeleteCourse}
-                    onAddClassroom={handleAddClassroom}
-                    onUpdateClassroom={handleUpdateClassroom}
-                    onDeleteClassroom={handleDeleteClassroom}
-                    onUpdateRequirements={setRequirements}
-                    onBatchAddTeachers={handleBatchAddTeachers}
-                    onBatchAddCourses={handleBatchAddCourses}
-                    onBatchAddClassrooms={handleBatchAddClassrooms}
-                    onCleanupDuplicateCourses={handleCleanupDuplicateCourses}
-                    onRepairRequirements={handleRepairRequirements}
-                    // Controlled props
-                    selectedTeacherId={selectedTeacherId}
-                    onSelectTeacher={setSelectedTeacherId}
-                />
-            )}
+                {activeTab === 'workload' && (
+                    <TeacherWorkloadPanel
+                        teachers={teachers}
+                        courses={courses}
+                        classrooms={classrooms}
+                        classes={classes}
+                        requirements={requirements}
+                        onAddTeacher={handleAddTeacher}
+                        onUpdateTeacher={handleUpdateTeacher}
+                        onDeleteTeacher={handleDeleteTeacher}
+                        onAddCourse={handleAddCourse}
+                        onUpdateCourse={handleUpdateCourse}
+                        onDeleteCourse={handleDeleteCourse}
+                        onAddClassroom={handleAddClassroom}
+                        onUpdateClassroom={handleUpdateClassroom}
+                        onDeleteClassroom={handleDeleteClassroom}
+                        onUpdateRequirements={setRequirements}
+                        onBatchAddTeachers={handleBatchAddTeachers}
+                        onBatchAddCourses={handleBatchAddCourses}
+                        onBatchAddClassrooms={handleBatchAddClassrooms}
+                        onCleanupDuplicateCourses={handleCleanupDuplicateCourses}
+                        onRepairRequirements={handleRepairRequirements}
+                        // Controlled props
+                        selectedTeacherId={selectedTeacherId}
+                        onSelectTeacher={setSelectedTeacherId}
+                    />
+                )}
 
-            {activeTab === 'settings' && (
-                <DataManagementPanel
-                    classes={classes}
-                    teachers={teachers}
-                    courses={courses}
-                    requirements={requirements}
-                    onUpdateRequirements={setRequirements}
-                    onUpdateClassCounts={handleUpdateClassCounts}
-                    onAssignHomeroom={handleAssignHomeroom}
-                    onAutoAssignHomeroom={handleAutoAssignHomeroomCourses}
-                    onUpdateTeacher={handleUpdateTeacher} // Needed for unavailableSlots
-                    onNavigateToWorkload={() => setActiveTab('workload')}
-                />
-            )}
+                {activeTab === 'settings' && (
+                    <DataManagementPanel
+                        classes={classes}
+                        teachers={teachers}
+                        courses={courses}
+                        requirements={requirements}
+                        onUpdateRequirements={setRequirements}
+                        onUpdateClassCounts={handleUpdateClassCounts}
+                        onAssignHomeroom={handleAssignHomeroom}
+                        onAutoAssignHomeroom={handleAutoAssignHomeroomCourses}
+                        onUpdateTeacher={handleUpdateTeacher} // Needed for unavailableSlots
+                        onNavigateToWorkload={() => setActiveTab('workload')}
+                    />
+                )}
 
-            {activeTab === 'scheduler' && (
-                <>
-                    <div className="controls-panel card">
-                        <div className="status-progress-container">
-                            {status === 'running' || progress.score > -99999999 ? (
-                                <div className="status-progress">
-                                    <div className="progress-info">
-                                        <div className="status-header">
-                                            <span className={`status-badge ${status}`}>
-                                                {status === 'running' ? '🚀 排課進行中' : status === 'stopped' ? '⏹ 已停止' : status === 'saving' ? '💾 儲存中' : '✅ 閒置'}
-                                            </span>
-                                            <span className="generation-info">第 {progress.generation} 代演化</span>
+                {activeTab === 'scheduler' && (
+                    <>
+                        <div className="controls-panel card">
+                            <div className="status-progress-container">
+                                {status === 'running' || progress.score > -99999999 ? (
+                                    <div className="status-progress">
+                                        <div className="progress-info">
+                                            <div className="status-header">
+                                                <span className={`status-badge ${status}`}>
+                                                    {status === 'running' ? '🚀 排課進行中' : status === 'stopped' ? '⏹ 已停止' : status === 'saving' ? '💾 儲存中' : '✅ 閒置'}
+                                                </span>
+                                                <span className="generation-info">第 {progress.generation} 代演化</span>
+                                            </div>
                                         </div>
-                                    </div>
 
-                                    <div className="score-visualization">
-                                        <div className="progress-bar-container">
-                                            <div
-                                                className="progress-bar-fill"
-                                                style={{ width: `${Math.max(0, Math.min(100, Math.max(0, progress.score) / 10000))}%` }}
-                                            ></div>
+                                        <div className="score-visualization">
+                                            <div className="progress-bar-container">
+                                                <div
+                                                    className="progress-bar-fill"
+                                                    style={{ width: `${Math.max(0, Math.min(100, Math.max(0, progress.score) / 10000))}%` }}
+                                                ></div>
+                                            </div>
+                                            <div className="score-details">
+                                                <span className="score-percent">
+                                                    {progress.score > 0 ? (progress.score / 10000).toFixed(1) : '0.0'}%
+                                                </span>
+                                                <span className="score-desc">
+                                                    {progress.score >= 1000000 ? '🎉 完美無衝突' :
+                                                        progress.score > 990000 ? '✨ 極佳 (微小優化中)' :
+                                                            progress.score > 900000 ? '👌 良好 (無重大衝突)' :
+                                                                progress.score > 0 ? '🚧 解決衝突中...' : '💥 嚴重衝突處理中'}
+                                                </span>
+                                            </div>
+                                            <small className="raw-score-hint">
+                                                演算法原始分數: {Math.floor(progress.score)}
+                                            </small>
                                         </div>
-                                        <div className="score-details">
-                                            <span className="score-percent">
-                                                {progress.score > 0 ? (progress.score / 10000).toFixed(1) : '0.0'}%
-                                            </span>
-                                            <span className="score-desc">
-                                                {progress.score >= 1000000 ? '🎉 完美無衝突' :
-                                                    progress.score > 990000 ? '✨ 極佳 (微小優化中)' :
-                                                        progress.score > 900000 ? '👌 良好 (無重大衝突)' :
-                                                            progress.score > 0 ? '🚧 解決衝突中...' : '💥 嚴重衝突處理中'}
-                                            </span>
-                                        </div>
-                                        <small className="raw-score-hint">
-                                            演算法原始分數: {Math.floor(progress.score)}
-                                        </small>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="status-bar">
-                                    <span>狀態: <strong className={`status-${status}`}>{status === 'idle' ? '閒置' : status.toUpperCase()}</strong></span>
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="action-buttons">
-                            {status === 'idle' || status === 'stopped' ? (
-                                <>
-                                    <button
-                                        className="btn btn-outline"
-                                        onClick={handleRunDiagnostics}
-                                        title="檢查排課資料的健康度"
-                                        style={{ marginRight: '8px' }}
-                                    >
-                                        🩺 排課前診斷
-                                    </button>
-                                    <button className="btn btn-primary" onClick={handleStart} disabled={status === 'loading'}>
-                                        ▶ 開始演算
-                                    </button>
-                                    <button
-                                        className="btn btn-outline"
-                                        onClick={() => setShowSnapshotManager(true)}
-                                        style={{ marginLeft: '8px', borderColor: '#3949ab', color: '#3949ab' }}
-                                    >
-                                        📸 快照管理
-                                    </button>
-                                    {bestSolution.length > 0 && (
-                                        <>
-                                            <button className="btn btn-primary" onClick={handleSave} style={{ background: '#10b981' }}>
-                                                💾 儲存課表
-                                            </button>
-                                            <button className="btn btn-secondary" onClick={() => handleBatchPrint('class')}>
-                                                🖨️ 列印全班
-                                            </button>
-                                            <button className="btn btn-secondary" onClick={() => handleBatchPrint('teacher')}>
-                                                🖨️ 列印全師
-                                            </button>
-                                        </>
-                                    )}
-                                </>
-                            ) : (
-                                <button className="btn btn-danger" onClick={handleStop}>
-                                    ⏹ 停止
-                                </button>
-                            )}
-                        </div>
-
-                        <div className="info-text">
-                            已載入 {classes.length} 個班級, {requirements.length} 條排課需求。
-                        </div>
-                    </div>
-
-                    <div className="preview-section" id="schedule-preview-anchor">
-                        <div className="preview-header">
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                <h3>{diffMode ? `🔍 比對模式: vs ${comparisonName}` : '即時預覽 (可拖拉調整)'}</h3>
-                                {diffMode && (
-                                    <button
-                                        className="btn btn-secondary btn-sm"
-                                        onClick={handleExitDiffMode}
-                                        style={{ background: '#6366f1', color: 'white', border: 'none' }}
-                                    >
-                                        退出比對
-                                    </button>
-                                )}
-                                <button
-                                    className="btn btn-outline btn-sm"
-                                    onClick={handleCopyShareLink}
-                                    title="複製公開分享連結"
-                                    style={{ padding: '4px 8px', fontSize: '0.8rem' }}
-                                >
-                                    🔗 分享
-                                </button>
-                                {viewClassId && !diffMode && (
-                                    <button
-                                        className="btn btn-secondary btn-sm"
-                                        onClick={() => setShowQRCode(true)}
-                                        style={{ fontSize: '0.8rem', padding: '4px 8px' }}
-                                    >
-                                        📱 行動查詢 QR Code
-                                    </button>
-                                )}
-                            </div>
-                            <div className="preview-selector">
-                                {/* Grade Tabs */}
-                                <div className="grade-tabs">
-                                    {[1, 2, 3, 4, 5, 6].map(g => {
-                                        const gradeClasses = classes.filter(c => c.grade === g || String(c.name).startsWith(`${g}年`));
-                                        if (gradeClasses.length === 0) return null;
-                                        const isActiveGrade = gradeClasses.some(c => c.id === viewClassId);
-                                        return (
-                                            <button
-                                                key={g}
-                                                className={`grade-tab ${isActiveGrade ? 'active' : ''}`}
-                                                onClick={() => {
-                                                    setViewClassId(gradeClasses[0].id);
-                                                    setTimeout(() => {
-                                                        document.getElementById('schedule-preview-anchor')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                                                    }, 80);
-                                                }}
-                                            >
-                                                {g}年級
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                                {/* Class Pills */}
-                                <div className="class-pills">
-                                    {(() => {
-                                        const currentGrade = classes.find(c => c.id === viewClassId)?.grade
-                                            || parseInt(String(classes.find(c => c.id === viewClassId)?.name)?.[0]) || 1;
-                                        const gradeClasses = classes.filter(c =>
-                                            c.grade === currentGrade || String(c.name).startsWith(`${currentGrade}年`)
-                                        );
-                                        return gradeClasses.map(c => (
-                                            <button
-                                                key={c.id}
-                                                className={`class-pill ${c.id === viewClassId ? 'active' : ''}`}
-                                                onClick={() => {
-                                                    setViewClassId(c.id);
-                                                    setTimeout(() => {
-                                                        document.getElementById('schedule-preview-anchor')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                                                    }, 80);
-                                                }}
-                                            >
-                                                {typeof c.name === 'string' ? c.name : c.name?.name || c.id}
-                                            </button>
-                                        ));
-                                    })()}
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* [Phase 1.1] Quality Report */}
-                        <QualityReport
-                            solution={bestSolution}
-                            teachers={teachers}
-                            courses={courses}
-                            classrooms={classrooms}
-                            onNavigateToClass={(classId) => {
-                                setViewClassId(classId);
-                                setTimeout(() => {
-                                    document.querySelector('.schedule-view')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                                }, 100);
-                            }}
-                            onNavigateToTeacher={(teacherId) => {
-                                window.open(`/course/teacher?id=${teacherId}`, '_blank');
-                            }}
-                        />
-
-                        {/* [Phase 2.1] Excel Import/Export */}
-                        <ExcelPanel
-                            bestSolution={bestSolution}
-                            classes={classes}
-                            teachers={teachers}
-                            courses={courses}
-                            classrooms={classrooms}
-                        />
-
-                        <div className="schedule-view">
-                            {bestSolution.length > 0 ? (
-                                <>
-                                    {conflictDetails.length > 0 && (
-                                        <ConflictResolver
-                                            conflictDetails={conflictDetails}
-                                            bestSolution={bestSolution}
-                                            classes={classes}
-                                            teachers={teachers}
-                                            courses={courses}
-                                            classrooms={classrooms}
-                                            onResolveConflict={handleResolveConflict}
-                                        />
-                                    )}
-                                    <ScheduleGrid
-                                        schedule={classScheduleDisplay}
-                                        type="class"
-                                        editable={!diffMode}
-                                        onMove={handleMoveCourse}
-                                        grade={classes.find(c => c.id === viewClassId)?.grade}
-                                        conflicts={globalConflicts[viewClassId]}
-                                        onDragStart={setDraggingIndex}
-                                        onDragEnd={() => setDraggingIndex(null)}
-                                        safeSlots={safeSlots}
-                                        onCellClick={handleEmptyCellClick}
-                                        // Filter Diff Map for current class (Keys: classId_index -> index)
-                                        diffMap={diffMode && diffMap ? new Map(
-                                            Array.from(diffMap.entries())
-                                                .filter(([k]) => k.startsWith(`${viewClassId}_`))
-                                                .map(([k, v]) => [parseInt(k.split('_')[1]), v])
-                                        ) : null}
-                                    />
-                                </>
-                            ) : (
-                                <div className="empty-state">尚未開始排課，請點擊開始。</div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Diagnostics Modal */}
-                    {showDiagnostics && (
-                        <div className="modal-overlay" onClick={() => setShowDiagnostics(false)}>
-                            <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '700px' }}>
-                                <h3>🩺 系統診斷報告</h3>
-                                {diagnosticResults.length === 0 ? (
-                                    <div style={{ textAlign: 'center', padding: '2rem', color: '#10b981' }}>
-                                        <div style={{ fontSize: '3rem' }}>✅</div>
-                                        <p>太棒了！沒有發現明顯的設定問題。</p>
-                                        <p>您可以安心開始排課。</p>
                                     </div>
                                 ) : (
-                                    <div className="diagnostics-list" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
-                                        <p style={{ marginBottom: '1rem', color: '#666' }}>
-                                            發現 {diagnosticResults.length} 個潛在問題，建議修正後再開始排課以提高成功率。
-                                        </p>
-                                        {diagnosticResults.map((item, idx) => (
-                                            <div key={idx} style={{
-                                                marginBottom: '12px',
-                                                padding: '12px',
-                                                borderRadius: '6px',
-                                                borderLeft: `4px solid ${item.type === 'error' ? '#ef4444' : '#f59e0b'}`,
-                                                backgroundColor: '#f9fafb'
-                                            }}>
-                                                <div style={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                    {item.type === 'error' ? '❌' : '⚠️'} {item.title}
-                                                </div>
-                                                <div style={{ fontSize: '0.9rem', margin: '4px 0', color: '#374151' }}>
-                                                    {item.message}
-                                                </div>
-                                                {/* Details List */}
-                                                {item.details && item.details.length > 0 && (
-                                                    <div style={{ margin: '8px 0', fontSize: '0.85rem', color: '#555', maxHeight: '100px', overflowY: 'auto', border: '1px solid #eee', padding: '4px', borderRadius: '4px' }}>
-                                                        {item.details.map((detail, dIdx) => (
-                                                            <div key={dIdx} style={{ padding: '2px 0' }}>• {detail}</div>
-                                                        ))}
-                                                    </div>
-                                                )}
-
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
-                                                    {item.suggestion && (
-                                                        <div style={{ fontSize: '0.85rem', color: '#4b5563', padding: '4px 8px', backgroundColor: '#f3f4f6', borderRadius: '4px', flex: 1 }}>
-                                                            💡 建議：{item.suggestion}
-                                                        </div>
-                                                    )}
-
-                                                    {/* Action Buttons */}
-                                                    {item.action === 'JUMP_TO_TEACHER' && (
-                                                        <button
-                                                            className="btn btn-primary btn-sm"
-                                                            style={{ marginLeft: '8px', fontSize: '0.8rem' }}
-                                                            onClick={() => {
-                                                                setActiveTab('workload');
-                                                                setSelectedTeacherId(item.payload);
-                                                                setShowDiagnostics(false);
-                                                            }}
-                                                        >
-                                                            前往調整
-                                                        </button>
-                                                    )}
-                                                    {item.action === 'FIX_INVALID_DATA' && (
-                                                        <button
-                                                            className="btn btn-danger btn-sm"
-                                                            style={{ marginLeft: '8px', fontSize: '0.8rem' }}
-                                                            onClick={() => {
-                                                                if (confirm('確定要清除這些無效的配課資料嗎？')) {
-                                                                    const validReqs = requirements.filter(r => r.teacherId && r.courseId && r.classId);
-                                                                    setRequirements(validReqs);
-                                                                    setDiagnosticResults(prev => prev.filter(r => r.type !== 'error' || r.title !== item.title));
-                                                                    alert(`已清除 ${requirements.length - validReqs.length} 筆無效資料。`);
-                                                                }
-                                                            }}
-                                                        >
-                                                            一鍵清除
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        ))}
+                                    <div className="status-bar">
+                                        <span>狀態: <strong className={`status-${status}`}>{status === 'idle' ? '閒置' : status.toUpperCase()}</strong></span>
                                     </div>
                                 )}
-                                <div style={{ marginTop: '1rem', textAlign: 'right' }}>
-                                    <button className="btn btn-primary" onClick={() => setShowDiagnostics(false)}>知道了</button>
-                                </div>
+                            </div>
+
+                            <div className="action-buttons">
+                                {status === 'idle' || status === 'stopped' ? (
+                                    <>
+                                        <button
+                                            className="btn btn-outline"
+                                            onClick={handleRunDiagnostics}
+                                            title="檢查排課資料的健康度"
+                                            style={{ marginRight: '8px' }}
+                                        >
+                                            🩺 排課前診斷
+                                        </button>
+                                        <button
+                                            className="btn btn-outline"
+                                            onClick={() => setShowSubstitute(true)}
+                                            title="智慧查找可代課老師"
+                                            style={{ marginRight: '8px', borderColor: '#7c3aed', color: '#7c3aed' }}
+                                        >
+                                            🔁 代課推薦
+                                        </button>
+                                        <button className="btn btn-primary" onClick={handleStart} disabled={status === 'loading'}>
+                                            ▶ 開始演算
+                                        </button>
+                                        <button
+                                            className="btn btn-outline"
+                                            onClick={() => setShowSnapshotManager(true)}
+                                            style={{ marginLeft: '8px', borderColor: '#3949ab', color: '#3949ab' }}
+                                        >
+                                            📸 快照管理
+                                        </button>
+                                        {bestSolution.length > 0 && (
+                                            <>
+                                                <button className="btn btn-primary" onClick={handleSave} style={{ background: '#10b981' }}>
+                                                    💾 儲存課表
+                                                </button>
+                                                <button
+                                                    className="btn btn-outline"
+                                                    onClick={handleSaveSmartSeed}
+                                                    title="儲存本學期最佳課表以提升下學期 AI 排課速度"
+                                                    style={{ borderColor: '#7c3aed', color: '#7c3aed' }}
+                                                >
+                                                    📚 儲存智慧種子
+                                                </button>
+                                                <button className="btn btn-secondary" onClick={() => handleBatchPrint('class')}>
+                                                    🖨️ 列印全班
+                                                </button>
+                                                <button className="btn btn-secondary" onClick={() => handleBatchPrint('teacher')}>
+                                                    🖨️ 列印全師
+                                                </button>
+                                            </>
+                                        )}
+                                    </>
+                                ) : (
+                                    <button className="btn btn-danger" onClick={handleStop}>
+                                        ⏹ 停止
+                                    </button>
+                                )}
+                            </div>
+
+                            <div className="info-text">
+                                已載入 {classes.length} 個班級, {requirements.length} 條排課需求。
+                                {smartSeedInfo && (
+                                    <span style={{ marginLeft: 12, color: '#7c3aed', fontWeight: 600 }}>
+                                        🧬 智慧種子已載入（學期 {smartSeedInfo.semesterId}・{smartSeedInfo.geneCount} 基因）
+                                    </span>
+                                )}
                             </div>
                         </div>
-                    )}
-                </>
-            )}
 
+                        <div className="preview-section" id="schedule-preview-anchor">
+                            <div className="preview-header">
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                    <h3>{diffMode ? `🔍 比對模式: vs ${comparisonName}` : '即時預覽 (可拖拉調整)'}</h3>
+                                    {diffMode && (
+                                        <button
+                                            className="btn btn-secondary btn-sm"
+                                            onClick={handleExitDiffMode}
+                                            style={{ background: '#6366f1', color: 'white', border: 'none' }}
+                                        >
+                                            退出比對
+                                        </button>
+                                    )}
+                                    <button
+                                        className="btn btn-outline btn-sm"
+                                        onClick={handleCopyShareLink}
+                                        title="複製公開分享連結"
+                                        style={{ padding: '4px 8px', fontSize: '0.8rem' }}
+                                    >
+                                        🔗 分享
+                                    </button>
+                                    {viewClassId && !diffMode && (
+                                        <button
+                                            className="btn btn-secondary btn-sm"
+                                            onClick={() => setShowQRCode(true)}
+                                            style={{ fontSize: '0.8rem', padding: '4px 8px' }}
+                                        >
+                                            📱 行動查詢 QR Code
+                                        </button>
+                                    )}
+                                </div>
+                                <div className="preview-selector">
+                                    {/* Grade Tabs */}
+                                    <div className="grade-tabs">
+                                        {[1, 2, 3, 4, 5, 6].map(g => {
+                                            const gradeClasses = classes.filter(c => c.grade === g || String(c.name).startsWith(`${g}年`));
+                                            if (gradeClasses.length === 0) return null;
+                                            const isActiveGrade = gradeClasses.some(c => c.id === viewClassId);
+                                            return (
+                                                <button
+                                                    key={g}
+                                                    className={`grade-tab ${isActiveGrade ? 'active' : ''}`}
+                                                    onClick={() => {
+                                                        setViewClassId(gradeClasses[0].id);
+                                                        setTimeout(() => {
+                                                            document.getElementById('schedule-preview-anchor')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                                        }, 80);
+                                                    }}
+                                                >
+                                                    {g}年級
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                    {/* Class Pills */}
+                                    <div className="class-pills">
+                                        {(() => {
+                                            const currentGrade = classes.find(c => c.id === viewClassId)?.grade
+                                                || parseInt(String(classes.find(c => c.id === viewClassId)?.name)?.[0]) || 1;
+                                            const gradeClasses = classes.filter(c =>
+                                                c.grade === currentGrade || String(c.name).startsWith(`${currentGrade}年`)
+                                            );
+                                            return gradeClasses.map(c => (
+                                                <button
+                                                    key={c.id}
+                                                    className={`class-pill ${c.id === viewClassId ? 'active' : ''}`}
+                                                    onClick={() => {
+                                                        setViewClassId(c.id);
+                                                        setTimeout(() => {
+                                                            document.getElementById('schedule-preview-anchor')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                                        }, 80);
+                                                    }}
+                                                >
+                                                    {typeof c.name === 'string' ? c.name : c.name?.name || c.id}
+                                                </button>
+                                            ));
+                                        })()}
+                                    </div>
+                                </div>
+                            </div>
 
-            {activeTab === 'export' && (
-                <div style={{ padding: '0 20px 20px' }}>
-                    {bestSolution.length === 0 ? (
-                        <div className="card" style={{ padding: '40px', textAlign: 'center', color: '#666' }}>
-                            <h3>尚未產生排課結果</h3>
-                            <p>請先進行「自動排課」，產生最佳課表後即可使用匯出功能。</p>
-                            <button className="btn btn-primary" onClick={() => setActiveTab('scheduler')}>
-                                前往排課
-                            </button>
-                        </div>
-                    ) : (
-                        <>
-                            <ExportPanel
+                            {/* [Phase 1.1] Quality Report */}
+                            <QualityReport
+                                solution={bestSolution}
+                                teachers={teachers}
+                                courses={courses}
+                                classrooms={classrooms}
+                                onNavigateToClass={(classId) => {
+                                    setViewClassId(classId);
+                                    setTimeout(() => {
+                                        document.querySelector('.schedule-view')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                    }, 100);
+                                }}
+                                onNavigateToTeacher={(teacherId) => {
+                                    window.open(`/course/teacher?id=${teacherId}`, '_blank');
+                                }}
+                            />
+
+                            {/* [Phase 2.1] Excel Import/Export */}
+                            <ExcelPanel
+                                bestSolution={bestSolution}
                                 classes={classes}
                                 teachers={teachers}
                                 courses={courses}
-                                bestSolution={bestSolution}
                                 classrooms={classrooms}
-                                onBatchPrint={handleBatchPrint}
                             />
 
-                            {/* Excel Export Zone */}
-                            <div style={{
-                                marginTop: '24px',
-                                background: 'linear-gradient(135deg, #667eea22 0%, #764ba222 50%, #f093fb22 100%)',
-                                borderRadius: '20px',
-                                padding: '28px',
-                                border: '1.5px solid rgba(102, 126, 234, 0.25)',
-                                boxShadow: '0 8px 32px rgba(102, 126, 234, 0.15), inset 0 1px 0 rgba(255,255,255,0.6)',
-                                backdropFilter: 'blur(10px)',
-                            }}>
-                                {/* Header */}
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-                                    <div style={{
-                                        width: '44px', height: '44px',
-                                        background: 'linear-gradient(135deg, #667eea, #764ba2)',
-                                        borderRadius: '12px',
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        fontSize: '22px',
-                                        boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)',
-                                        flexShrink: 0,
-                                    }}>📊</div>
-                                    <div>
-                                        <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#3d2b7e' }}>資料匯出 (Excel)</h3>
-                                        <p style={{ margin: 0, fontSize: '0.82rem', color: '#6b6b8a' }}>將排課結果匯出為標準 Excel，方便列印與分發</p>
+                            <div className="schedule-view">
+                                {bestSolution.length > 0 ? (
+                                    <>
+                                        {conflictDetails.length > 0 && (
+                                            <ConflictResolver
+                                                conflictDetails={conflictDetails}
+                                                bestSolution={bestSolution}
+                                                classes={classes}
+                                                teachers={teachers}
+                                                courses={courses}
+                                                classrooms={classrooms}
+                                                onResolveConflict={handleResolveConflict}
+                                            />
+                                        )}
+                                        <ScheduleGrid
+                                            schedule={classScheduleDisplay}
+                                            type="class"
+                                            editable={!diffMode}
+                                            onMove={handleMoveCourse}
+                                            grade={classes.find(c => c.id === viewClassId)?.grade}
+                                            conflicts={globalConflicts[viewClassId]}
+                                            onDragStart={setDraggingIndex}
+                                            onDragEnd={() => setDraggingIndex(null)}
+                                            safeSlots={safeSlots}
+                                            onCellClick={handleEmptyCellClick}
+                                            // Filter Diff Map for current class (Keys: classId_index -> index)
+                                            diffMap={diffMode && diffMap ? new Map(
+                                                Array.from(diffMap.entries())
+                                                    .filter(([k]) => k.startsWith(`${viewClassId}_`))
+                                                    .map(([k, v]) => [parseInt(k.split('_')[1]), v])
+                                            ) : null}
+                                        />
+                                    </>
+                                ) : (
+                                    <div className="empty-state">尚未開始排課，請點擊開始。</div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Diagnostics Modal */}
+                        {showDiagnostics && (
+                            <div className="modal-overlay" onClick={() => setShowDiagnostics(false)}>
+                                <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '700px' }}>
+                                    <h3>🩺 系統診斷報告</h3>
+                                    {diagnosticResults.length === 0 ? (
+                                        <div style={{ textAlign: 'center', padding: '2rem', color: '#10b981' }}>
+                                            <div style={{ fontSize: '3rem' }}>✅</div>
+                                            <p>太棒了！沒有發現明顯的設定問題。</p>
+                                            <p>您可以安心開始排課。</p>
+                                        </div>
+                                    ) : (
+                                        <div className="diagnostics-list" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+                                            <p style={{ marginBottom: '1rem', color: '#666' }}>
+                                                發現 {diagnosticResults.length} 個潛在問題，建議修正後再開始排課以提高成功率。
+                                            </p>
+                                            {diagnosticResults.map((item, idx) => (
+                                                <div key={idx} style={{
+                                                    marginBottom: '12px',
+                                                    padding: '12px',
+                                                    borderRadius: '6px',
+                                                    borderLeft: `4px solid ${item.type === 'error' ? '#ef4444' : '#f59e0b'}`,
+                                                    backgroundColor: '#f9fafb'
+                                                }}>
+                                                    <div style={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                        {item.type === 'error' ? '❌' : '⚠️'} {item.title}
+                                                    </div>
+                                                    <div style={{ fontSize: '0.9rem', margin: '4px 0', color: '#374151' }}>
+                                                        {item.message}
+                                                    </div>
+                                                    {/* Details List */}
+                                                    {item.details && item.details.length > 0 && (
+                                                        <div style={{ margin: '8px 0', fontSize: '0.85rem', color: '#555', maxHeight: '100px', overflowY: 'auto', border: '1px solid #eee', padding: '4px', borderRadius: '4px' }}>
+                                                            {item.details.map((detail, dIdx) => (
+                                                                <div key={dIdx} style={{ padding: '2px 0' }}>• {detail}</div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
+                                                        {item.suggestion && (
+                                                            <div style={{ fontSize: '0.85rem', color: '#4b5563', padding: '4px 8px', backgroundColor: '#f3f4f6', borderRadius: '4px', flex: 1 }}>
+                                                                💡 建議：{item.suggestion}
+                                                            </div>
+                                                        )}
+
+                                                        {/* Action Buttons */}
+                                                        {item.action === 'JUMP_TO_TEACHER' && (
+                                                            <button
+                                                                className="btn btn-primary btn-sm"
+                                                                style={{ marginLeft: '8px', fontSize: '0.8rem' }}
+                                                                onClick={() => {
+                                                                    setActiveTab('workload');
+                                                                    setSelectedTeacherId(item.payload);
+                                                                    setShowDiagnostics(false);
+                                                                }}
+                                                            >
+                                                                前往調整
+                                                            </button>
+                                                        )}
+                                                        {item.action === 'FIX_INVALID_DATA' && (
+                                                            <button
+                                                                className="btn btn-danger btn-sm"
+                                                                style={{ marginLeft: '8px', fontSize: '0.8rem' }}
+                                                                onClick={() => {
+                                                                    if (confirm('確定要清除這些無效的配課資料嗎？')) {
+                                                                        const validReqs = requirements.filter(r => r.teacherId && r.courseId && r.classId);
+                                                                        setRequirements(validReqs);
+                                                                        setDiagnosticResults(prev => prev.filter(r => r.type !== 'error' || r.title !== item.title));
+                                                                        alert(`已清除 ${requirements.length - validReqs.length} 筆無效資料。`);
+                                                                    }
+                                                                }}
+                                                            >
+                                                                一鍵清除
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                    <div style={{ marginTop: '1rem', textAlign: 'right' }}>
+                                        <button className="btn btn-primary" onClick={() => setShowDiagnostics(false)}>知道了</button>
                                     </div>
-                                </div>
-
-                                {/* Export Cards Grid */}
-                                <div style={{
-                                    display: 'grid',
-                                    gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-                                    gap: '16px',
-                                    marginTop: '20px',
-                                }}>
-                                    {/* Card 1: 班級課表 */}
-                                    <button
-                                        onClick={async () => {
-                                            try {
-                                                setStatus('running');
-                                                const exporter = new ExcelExporter();
-                                                const courseNameMap = new Map(courses.map(c => [c.id, c.name]));
-                                                const teacherNameMap = new Map(teachers.map(t => [t.id, t.name]));
-                                                await exporter.exportClassSchedules(bestSolution, courseNameMap, teacherNameMap);
-                                                alert('✅ 班級課表匯出成功！');
-                                            } catch (e) {
-                                                console.error(e);
-                                                alert('❌ 匯出失敗: ' + e.message);
-                                            } finally {
-                                                setStatus('idle');
-                                            }
-                                        }}
-                                        style={{
-                                            background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-                                            border: 'none',
-                                            borderRadius: '16px',
-                                            padding: '20px',
-                                            cursor: 'pointer',
-                                            textAlign: 'left',
-                                            boxShadow: '0 6px 20px rgba(79, 172, 254, 0.4), 0 2px 8px rgba(0,0,0,0.08)',
-                                            transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-                                            color: 'white',
-                                        }}
-                                        onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 12px 28px rgba(79, 172, 254, 0.5), 0 4px 12px rgba(0,0,0,0.1)'; }}
-                                        onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(79, 172, 254, 0.4), 0 2px 8px rgba(0,0,0,0.08)'; }}
-                                    >
-                                        <div style={{ fontSize: '2rem', marginBottom: '8px' }}>🏫</div>
-                                        <div style={{ fontWeight: 700, fontSize: '1rem', marginBottom: '4px' }}>班級課表</div>
-                                        <div style={{ fontSize: '0.78rem', opacity: 0.9 }}>每班一個 Sheet，含完整節次與科目</div>
-                                        <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 600, opacity: 0.95 }}>
-                                            <span>📥</span> 匯出 .xlsx
-                                        </div>
-                                    </button>
-
-                                    {/* Card 2: 教師課表 */}
-                                    <button
-                                        onClick={async () => {
-                                            try {
-                                                setStatus('running');
-                                                const exporter = new ExcelExporter();
-                                                const courseNameMap = new Map(courses.map(c => [c.id, c.name]));
-                                                const teacherNameMap = new Map(teachers.map(t => [t.id, t.name]));
-                                                await exporter.exportTeacherSchedules(bestSolution, courseNameMap, teacherNameMap);
-                                                alert('✅ 教師課表匯出成功！');
-                                            } catch (e) {
-                                                console.error(e);
-                                                alert('❌ 匯出失敗: ' + e.message);
-                                            } finally {
-                                                setStatus('idle');
-                                            }
-                                        }}
-                                        style={{
-                                            background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
-                                            border: 'none',
-                                            borderRadius: '16px',
-                                            padding: '20px',
-                                            cursor: 'pointer',
-                                            textAlign: 'left',
-                                            boxShadow: '0 6px 20px rgba(250, 112, 154, 0.4), 0 2px 8px rgba(0,0,0,0.08)',
-                                            transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-                                            color: 'white',
-                                        }}
-                                        onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 12px 28px rgba(250, 112, 154, 0.5), 0 4px 12px rgba(0,0,0,0.1)'; }}
-                                        onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(250, 112, 154, 0.4), 0 2px 8px rgba(0,0,0,0.08)'; }}
-                                    >
-                                        <div style={{ fontSize: '2rem', marginBottom: '8px' }}>👨‍🏫</div>
-                                        <div style={{ fontWeight: 700, fontSize: '1rem', marginBottom: '4px' }}>教師課表</div>
-                                        <div style={{ fontSize: '0.78rem', opacity: 0.9 }}>每師一個 Sheet，含導班與任課資訊</div>
-                                        <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 600, opacity: 0.95 }}>
-                                            <span>📥</span> 匯出 .xlsx
-                                        </div>
-                                    </button>
                                 </div>
                             </div>
-                        </>
-                    )}
-                </div>
-            )}
+                        )}
+                    </>
+                )}
 
-            {/* Smart Fill Modal */}
-            {smartFillModal.show && (
-                <div className="modal-overlay" onClick={() => setSmartFillModal({ ...smartFillModal, show: false })}>
-                    <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '500px' }}>
-                        <h3>✨ 智慧填補 (週{['一', '二', '三', '四', '五'][Math.floor(smartFillModal.slotIndex / 7)]} 第{(smartFillModal.slotIndex % 7) + 1}節)</h3>
-                        <p style={{ color: '#666', marginBottom: '1rem' }}>請選擇要排入的課程：</p>
 
-                        <div className="candidates-list" style={{ maxHeight: '50vh', overflowY: 'auto' }}>
-                            {smartFillModal.candidates.filter(c => c.state !== 'busy' && c.state !== 'full').length === 0 && (
-                                <div style={{ padding: '0.5rem', textAlign: 'center', color: '#888', fontSize: '0.9rem' }}>
-                                    (目前沒有可排的候選人，以下顯示已排完或忙碌的項目)
-                                </div>
-                            )}
+                {activeTab === 'export' && (
+                    <div style={{ padding: '0 20px 20px' }}>
+                        {bestSolution.length === 0 ? (
+                            <div className="card" style={{ padding: '40px', textAlign: 'center', color: '#666' }}>
+                                <h3>尚未產生排課結果</h3>
+                                <p>請先進行「自動排課」，產生最佳課表後即可使用匯出功能。</p>
+                                <button className="btn btn-primary" onClick={() => setActiveTab('scheduler')}>
+                                    前往排課
+                                </button>
+                            </div>
+                        ) : (
+                            <>
+                                <ExportPanel
+                                    classes={classes}
+                                    teachers={teachers}
+                                    courses={courses}
+                                    bestSolution={bestSolution}
+                                    classrooms={classrooms}
+                                    onBatchPrint={handleBatchPrint}
+                                    onImport={handleImportFile}
+                                />
 
-                            {smartFillModal.candidates.map((c, idx) => {
-                                const isBusy = c.state === 'busy';
-                                const isRestricted = c.state === 'restricted';
-                                const isAvoid = c.state === 'avoid';
-                                const isFull = c.state === 'full';
 
-                                const isDisabled = isBusy;
-
-                                const handleItemClick = () => {
-                                    if (isFull) {
-                                        setSmartFillModal({ ...smartFillModal, show: false });
-                                        setActiveTab('workload');
-                                        setSelectedTeacherId(c.teacherId);
-                                    } else if (!isBusy) {
-                                        handleSmartFillSelect(c);
-                                        setSmartFillModal({ ...smartFillModal, show: false });
-                                    }
-                                };
-
-                                return (
-                                    <div
-                                        key={idx}
-                                        className={`candidate-item ${c.state}`}
-                                        onClick={handleItemClick}
-                                        style={{
-                                            padding: '10px',
-                                            borderBottom: '1px solid #eee',
-                                            cursor: isDisabled ? 'not-allowed' : 'pointer',
-                                            display: 'flex',
-                                            justifyContent: 'space-between',
-                                            alignItems: 'center',
-                                            opacity: isDisabled ? 0.6 : 1,
-                                            backgroundColor: isFull ? '#f8f9fa' : 'white'
-                                        }}
-                                    >
+                                {/* Excel Export Zone */}
+                                <div style={{
+                                    marginTop: '24px',
+                                    background: 'linear-gradient(135deg, #667eea22 0%, #764ba222 50%, #f093fb22 100%)',
+                                    borderRadius: '20px',
+                                    padding: '28px',
+                                    border: '1.5px solid rgba(102, 126, 234, 0.25)',
+                                    boxShadow: '0 8px 32px rgba(102, 126, 234, 0.15), inset 0 1px 0 rgba(255,255,255,0.6)',
+                                    backdropFilter: 'blur(10px)',
+                                }}>
+                                    {/* Header */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                                        <div style={{
+                                            width: '44px', height: '44px',
+                                            background: 'linear-gradient(135deg, #667eea, #764ba2)',
+                                            borderRadius: '12px',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            fontSize: '22px',
+                                            boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)',
+                                            flexShrink: 0,
+                                        }}>📊</div>
                                         <div>
-                                            <div style={{ fontWeight: 'bold' }}>{c.teacherName}</div>
-                                            <div style={{ fontSize: '0.9rem', color: '#666' }}>
-                                                {c.remaining}/{c.total} 節 • {c.priorityScore.toFixed(0)}分
-                                                {isAvoid && <span style={{ color: 'orange', marginLeft: '5px' }}>(非偏好)</span>}
-                                                {isRestricted && <span style={{ color: 'red', marginLeft: '5px' }}>(避免)</span>}
-                                                {isFull && <span style={{ color: '#28a745', marginLeft: '5px' }}>(已排完)</span>}
-                                            </div>
+                                            <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#3d2b7e' }}>資料匯出 (Excel)</h3>
+                                            <p style={{ margin: 0, fontSize: '0.82rem', color: '#6b6b8a' }}>將排課結果匯出為標準 Excel，方便列印與分發</p>
                                         </div>
-                                        {isDisabled && <span style={{ color: 'red', fontSize: '0.8rem' }}>衝堂</span>}
                                     </div>
-                                );
-                            })}
-                        </div>
-                        <div style={{ marginTop: '1rem', textAlign: 'right' }}>
-                            <button className="btn btn-secondary" onClick={() => setSmartFillModal({ ...smartFillModal, show: false })}>
-                                取消
-                            </button>
+
+                                    {/* Export Cards Grid */}
+                                    <div style={{
+                                        display: 'grid',
+                                        gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+                                        gap: '16px',
+                                        marginTop: '20px',
+                                    }}>
+                                        {/* Card 1: 班級課表 */}
+                                        <button
+                                            onClick={async () => {
+                                                try {
+                                                    setStatus('running');
+                                                    const exporter = new ExcelExporter();
+                                                    const courseNameMap = new Map(courses.map(c => [c.id, c.name]));
+                                                    const teacherNameMap = new Map(teachers.map(t => [t.id, t.name]));
+                                                    await exporter.exportClassSchedules(bestSolution, courseNameMap, teacherNameMap);
+                                                    alert('✅ 班級課表匯出成功！');
+                                                } catch (e) {
+                                                    console.error(e);
+                                                    alert('❌ 匯出失敗: ' + e.message);
+                                                } finally {
+                                                    setStatus('idle');
+                                                }
+                                            }}
+                                            style={{
+                                                background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+                                                border: 'none',
+                                                borderRadius: '16px',
+                                                padding: '20px',
+                                                cursor: 'pointer',
+                                                textAlign: 'left',
+                                                boxShadow: '0 6px 20px rgba(79, 172, 254, 0.4), 0 2px 8px rgba(0,0,0,0.08)',
+                                                transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                                                color: 'white',
+                                            }}
+                                            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 12px 28px rgba(79, 172, 254, 0.5), 0 4px 12px rgba(0,0,0,0.1)'; }}
+                                            onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(79, 172, 254, 0.4), 0 2px 8px rgba(0,0,0,0.08)'; }}
+                                        >
+                                            <div style={{ fontSize: '2rem', marginBottom: '8px' }}>🏫</div>
+                                            <div style={{ fontWeight: 700, fontSize: '1rem', marginBottom: '4px' }}>班級課表</div>
+                                            <div style={{ fontSize: '0.78rem', opacity: 0.9 }}>每班一個 Sheet，含完整節次與科目</div>
+                                            <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 600, opacity: 0.95 }}>
+                                                <span>📥</span> 匯出 .xlsx
+                                            </div>
+                                        </button>
+
+                                        {/* Card 2: 教師課表 */}
+                                        <button
+                                            onClick={async () => {
+                                                try {
+                                                    setStatus('running');
+                                                    const exporter = new ExcelExporter();
+                                                    const courseNameMap = new Map(courses.map(c => [c.id, c.name]));
+                                                    const teacherNameMap = new Map(teachers.map(t => [t.id, t.name]));
+                                                    await exporter.exportTeacherSchedules(bestSolution, courseNameMap, teacherNameMap);
+                                                    alert('✅ 教師課表匯出成功！');
+                                                } catch (e) {
+                                                    console.error(e);
+                                                    alert('❌ 匯出失敗: ' + e.message);
+                                                } finally {
+                                                    setStatus('idle');
+                                                }
+                                            }}
+                                            style={{
+                                                background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+                                                border: 'none',
+                                                borderRadius: '16px',
+                                                padding: '20px',
+                                                cursor: 'pointer',
+                                                textAlign: 'left',
+                                                boxShadow: '0 6px 20px rgba(250, 112, 154, 0.4), 0 2px 8px rgba(0,0,0,0.08)',
+                                                transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                                                color: 'white',
+                                            }}
+                                            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 12px 28px rgba(250, 112, 154, 0.5), 0 4px 12px rgba(0,0,0,0.1)'; }}
+                                            onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(250, 112, 154, 0.4), 0 2px 8px rgba(0,0,0,0.08)'; }}
+                                        >
+                                            <div style={{ fontSize: '2rem', marginBottom: '8px' }}>👨‍🏫</div>
+                                            <div style={{ fontWeight: 700, fontSize: '1rem', marginBottom: '4px' }}>教師課表</div>
+                                            <div style={{ fontSize: '0.78rem', opacity: 0.9 }}>每師一個 Sheet，含導班與任課資訊</div>
+                                            <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 600, opacity: 0.95 }}>
+                                                <span>📥</span> 匯出 .xlsx
+                                            </div>
+                                        </button>
+                                    </div>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                )}
+
+                {/* Smart Fill Modal */}
+                {smartFillModal.show && (
+                    <div className="modal-overlay" onClick={() => setSmartFillModal({ ...smartFillModal, show: false })}>
+                        <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+                            <h3>✨ 智慧填補 (週{['一', '二', '三', '四', '五'][Math.floor(smartFillModal.slotIndex / 7)]} 第{(smartFillModal.slotIndex % 7) + 1}節)</h3>
+                            <p style={{ color: '#666', marginBottom: '1rem' }}>請選擇要排入的課程：</p>
+
+                            <div className="candidates-list" style={{ maxHeight: '50vh', overflowY: 'auto' }}>
+                                {smartFillModal.candidates.filter(c => c.state !== 'busy' && c.state !== 'full').length === 0 && (
+                                    <div style={{ padding: '0.5rem', textAlign: 'center', color: '#888', fontSize: '0.9rem' }}>
+                                        (目前沒有可排的候選人，以下顯示已排完或忙碌的項目)
+                                    </div>
+                                )}
+
+                                {smartFillModal.candidates.map((c, idx) => {
+                                    const isBusy = c.state === 'busy';
+                                    const isRestricted = c.state === 'restricted';
+                                    const isAvoid = c.state === 'avoid';
+                                    const isFull = c.state === 'full';
+
+                                    const isDisabled = isBusy;
+
+                                    const handleItemClick = () => {
+                                        if (isFull) {
+                                            setSmartFillModal({ ...smartFillModal, show: false });
+                                            setActiveTab('workload');
+                                            setSelectedTeacherId(c.teacherId);
+                                        } else if (!isBusy) {
+                                            handleSmartFillSelect(c);
+                                            setSmartFillModal({ ...smartFillModal, show: false });
+                                        }
+                                    };
+
+                                    return (
+                                        <div
+                                            key={idx}
+                                            className={`candidate-item ${c.state}`}
+                                            onClick={handleItemClick}
+                                            style={{
+                                                padding: '10px',
+                                                borderBottom: '1px solid #eee',
+                                                cursor: isDisabled ? 'not-allowed' : 'pointer',
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                alignItems: 'center',
+                                                opacity: isDisabled ? 0.6 : 1,
+                                                backgroundColor: isFull ? '#f8f9fa' : 'white'
+                                            }}
+                                        >
+                                            <div>
+                                                <div style={{ fontWeight: 'bold' }}>{c.teacherName}</div>
+                                                <div style={{ fontSize: '0.9rem', color: '#666' }}>
+                                                    {c.remaining}/{c.total} 節 • {c.priorityScore.toFixed(0)}分
+                                                    {isAvoid && <span style={{ color: 'orange', marginLeft: '5px' }}>(非偏好)</span>}
+                                                    {isRestricted && <span style={{ color: 'red', marginLeft: '5px' }}>(避免)</span>}
+                                                    {isFull && <span style={{ color: '#28a745', marginLeft: '5px' }}>(已排完)</span>}
+                                                </div>
+                                            </div>
+                                            {isDisabled && <span style={{ color: 'red', fontSize: '0.8rem' }}>衝堂</span>}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            <div style={{ marginTop: '1rem', textAlign: 'right' }}>
+                                <button className="btn btn-secondary" onClick={() => setSmartFillModal({ ...smartFillModal, show: false })}>
+                                    取消
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )}
 
 
-            {/* QR Code Modal */}
-            {showQRCode && (
-                <div className="modal-overlay" onClick={() => setShowQRCode(false)}>
-                    <div className="modal-content qr-modal" onClick={e => e.stopPropagation()}>
-                        <h3>手機掃描查詢課表</h3>
-                        <div className="qr-container" style={{ margin: '1.5rem 0', textAlign: 'center' }}>
-                            <img
-                                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(window.location.origin + '/public/class/' + viewClassId)}`}
-                                alt="QR Code"
-                                style={{ border: '4px solid white', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}
+                {/* QR Code Modal */}
+                {showQRCode && (
+                    <div className="modal-overlay" onClick={() => setShowQRCode(false)}>
+                        <div className="modal-content qr-modal" onClick={e => e.stopPropagation()}>
+                            <h3>手機掃描查詢課表</h3>
+                            <div className="qr-container" style={{ margin: '1.5rem 0', textAlign: 'center' }}>
+                                <img
+                                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(window.location.origin + '/public/class/' + viewClassId)}`}
+                                    alt="QR Code"
+                                    style={{ border: '4px solid white', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}
+                                />
+                            </div>
+                            <p style={{ fontSize: '0.9rem', color: '#666' }}>
+                                掃描此 QR Code 可直接在手機上查看 <b>{viewClassId}</b> 的課表。
+                            </p>
+                            <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
+                                <button className="btn btn-primary" onClick={() => setShowQRCode(false)}>關閉</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+                {/* Snapshot Manager */}
+                {showSnapshotManager && (
+                    <div className="modal-overlay" onClick={() => setShowSnapshotManager(false)}>
+                        <div className="modal-content" onClick={e => e.stopPropagation()}>
+                            <h3>版本快照管理</h3>
+                            <SnapshotManager
+                                currentData={{ classes, teachers, courses, requirements, bestSolution }}
+                                onRestore={(data) => {
+                                    if (data.classes) setClasses(data.classes);
+                                    if (data.teachers) setTeachers(data.teachers);
+                                    if (data.courses) setCourses(data.courses);
+                                    if (data.requirements) setRequirements(data.requirements);
+                                    if (data.bestSolution) setBestSolution(data.bestSolution);
+                                    setShowSnapshotManager(false);
+                                    alert('已還原至選定版本！');
+                                }}
+                                onLoadForDiff={(snapshotData, name) => {
+                                    // 1. Save current state map
+                                    const currentMap = new Map();
+                                    bestSolution.forEach(g => {
+                                        const key = `${g.classId}-${g.courseId}`;
+                                        currentMap.set(key, g);
+                                    });
+
+                                    // 2. Generate Diff Map
+                                    const newDiffMap = new Map();
+                                    let diffCount = 0;
+
+                                    snapshotData.bestSolution.forEach(oldGene => {
+                                        const key = `${oldGene.classId}-${oldGene.courseId}`;
+                                        const currentGene = currentMap.get(key);
+
+                                        if (!currentGene) {
+                                            // Removed in current
+                                            // newDiffMap.set(key, { status: 'removed' }); // Not visualizing removed for now
+                                        } else if (currentGene.periodIndex !== oldGene.periodIndex) {
+                                            // Moved
+                                            newDiffMap.set(currentGene.id, 'moved');
+                                            diffCount++;
+                                        } else {
+                                            // Unchanged
+                                            newDiffMap.set(currentGene.id, 'unchanged');
+                                        }
+                                    });
+                                    // New items? (in current but not in snapshot) - marked as 'new' ?
+                                    bestSolution.forEach(g => {
+                                        // If logic needed
+                                    });
+
+                                    setDiffMap(newDiffMap);
+                                    setComparisonName(name || '歷史版本');
+                                    setOriginalBestSolution(JSON.parse(JSON.stringify(bestSolution))); // Backup
+                                    setDiffMode(true);
+                                    setShowSnapshotManager(false);
+
+                                    alert(`已進入「版本比對模式」\n與 ${name} 相比，共有 ${diffCount} 堂課位置不同。`);
+                                }}
+                                onClose={() => setShowSnapshotManager(false)}
                             />
                         </div>
-                        <p style={{ fontSize: '0.9rem', color: '#666' }}>
-                            掃描此 QR Code 可直接在手機上查看 <b>{viewClassId}</b> 的課表。
-                        </p>
-                        <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
-                            <button className="btn btn-primary" onClick={() => setShowQRCode(false)}>關閉</button>
-                        </div>
                     </div>
-                </div>
-            )}
-            {/* Snapshot Manager */}
-            {showSnapshotManager && (
-                <div className="modal-overlay" onClick={() => setShowSnapshotManager(false)}>
-                    <div className="modal-content" onClick={e => e.stopPropagation()}>
-                        <h3>版本快照管理</h3>
-                        <SnapshotManager
-                            currentData={{ classes, teachers, courses, requirements, bestSolution }}
-                            onRestore={(data) => {
-                                if (data.classes) setClasses(data.classes);
-                                if (data.teachers) setTeachers(data.teachers);
-                                if (data.courses) setCourses(data.courses);
-                                if (data.requirements) setRequirements(data.requirements);
-                                if (data.bestSolution) setBestSolution(data.bestSolution);
-                                setShowSnapshotManager(false);
-                                alert('已還原至選定版本！');
-                            }}
-                            onLoadForDiff={(snapshotData, name) => {
-                                // 1. Save current state map
-                                const currentMap = new Map();
-                                bestSolution.forEach(g => {
-                                    const key = `${g.classId}-${g.courseId}`;
-                                    currentMap.set(key, g);
-                                });
+                )}
 
-                                // 2. Generate Diff Map
-                                const newDiffMap = new Map();
-                                let diffCount = 0;
-
-                                snapshotData.bestSolution.forEach(oldGene => {
-                                    const key = `${oldGene.classId}-${oldGene.courseId}`;
-                                    const currentGene = currentMap.get(key);
-
-                                    if (!currentGene) {
-                                        // Removed in current
-                                        // newDiffMap.set(key, { status: 'removed' }); // Not visualizing removed for now
-                                    } else if (currentGene.periodIndex !== oldGene.periodIndex) {
-                                        // Moved
-                                        newDiffMap.set(currentGene.id, 'moved');
-                                        diffCount++;
-                                    } else {
-                                        // Unchanged
-                                        newDiffMap.set(currentGene.id, 'unchanged');
-                                    }
-                                });
-                                // New items? (in current but not in snapshot) - marked as 'new' ?
-                                bestSolution.forEach(g => {
-                                    // If logic needed
-                                });
-
-                                setDiffMap(newDiffMap);
-                                setComparisonName(name || '歷史版本');
-                                setOriginalBestSolution(JSON.parse(JSON.stringify(bestSolution))); // Backup
-                                setDiffMode(true);
-                                setShowSnapshotManager(false);
-
-                                alert(`已進入「版本比對模式」\n與 ${name} 相比，共有 ${diffCount} 堂課位置不同。`);
-                            }}
-                            onClose={() => setShowSnapshotManager(false)}
-                        />
-                    </div>
-                </div>
-            )}
-
-            {/* Print Settings Modal */}
-            {showPrintModal && (
-                <PrintSettingsModal
-                    isOpen={showPrintModal}
-                    onClose={() => setShowPrintModal(false)}
-                    onPrint={(settings) => {
-                        setPrintSettings(settings);
-                        setShowPrintModal(false);
-                        // Trigger print in next tick to allow state update
-                        setTimeout(() => window.print(), 100);
-                    }}
-                    defaultSettings={printSettings}
-                    isBatch={isBatchPrinting}
-                />
-            )}
-            {/* Batch Print Area (Hidden in browser, visible in print) */}
-            {
-                isBatchPrinting && (
-                    <div
-                        className={`print-area print-page-${printSettings.paperSize.toLowerCase()} print-layout-${printSettings.layout}`}
-                        style={{ '--print-font-size': `${printSettings.fontSize}px` }}
-                    >
-                        {printType === 'class' ? (
-                            classes
-                                .filter(c => !printFilter || (printFilter.type === 'grade' && Number(c.grade) === printFilter.value))
-                                .map(c => (
-                                    <div key={c.id} className="print-page-break">
-                                        <h1 className="print-report-title">{formatPrintTitle(printSettings.titleTemplate, c)}</h1>
+                {/* Print Settings Modal */}
+                {showPrintModal && (
+                    <PrintSettingsModal
+                        isOpen={showPrintModal}
+                        onClose={() => setShowPrintModal(false)}
+                        onPrint={(settings) => {
+                            setPrintSettings(settings);
+                            setShowPrintModal(false);
+                            // Trigger print in next tick to allow state update
+                            setTimeout(() => window.print(), 100);
+                        }}
+                        defaultSettings={printSettings}
+                        isBatch={isBatchPrinting}
+                    />
+                )}
+                {/* Batch Print Area (Hidden in browser, visible in print) */}
+                {
+                    isBatchPrinting && (
+                        <div
+                            className={`print-area print-page-${printSettings.paperSize.toLowerCase()} print-layout-${printSettings.layout}`}
+                            style={{ '--print-font-size': `${printSettings.fontSize}px` }}
+                        >
+                            {printType === 'class' ? (
+                                classes
+                                    .filter(c => !printFilter || (printFilter.type === 'grade' && Number(c.grade) === printFilter.value))
+                                    .map(c => (
+                                        <div key={c.id} className="print-page-break">
+                                            <h1 className="print-report-title">{formatPrintTitle(printSettings.titleTemplate, c)}</h1>
+                                            <ScheduleGrid
+                                                schedule={getFullGridForClass(c.id).map(p => ({
+                                                    ...p,
+                                                    topLine: printSettings.showCourseName ? p?.topLine : '',
+                                                    bottomLine: printSettings.showTeacherName ? p?.bottomLine : ''
+                                                }))}
+                                                type="class"
+                                                editable={false}
+                                            />
+                                        </div>
+                                    ))
+                            ) : printType === 'teacher' ? (
+                                teachers
+                                    .filter(t => t.id !== 'none')
+                                    .filter(t => {
+                                        if (!printFilter) return true;
+                                        if (printFilter.type === 'category') {
+                                            const cat = printFilter.value;
+                                            const homeroomTeacherIds = new Set(classes.map(c => c.teacherId).filter(id => id));
+                                            if (cat === 'homeroom') return homeroomTeacherIds.has(t.id);
+                                            if (cat === 'subject') return !homeroomTeacherIds.has(t.id) && !t.name.includes('主任') && !t.name.includes('校長');
+                                            if (cat === 'admin') return t.name.includes('主任') || t.name.includes('校長') || t.name.includes('組長');
+                                        }
+                                        return true;
+                                    })
+                                    .map(t => (
+                                        <div key={t.id} className="print-page-break">
+                                            <h1 className="print-report-title">{formatPrintTitle(printSettings.titleTemplate, t)}</h1>
+                                            <ScheduleGrid
+                                                schedule={getFullGridForTeacher(t.id).map(p => ({
+                                                    ...p,
+                                                    topLine: printSettings.showCourseName ? p?.topLine : '',
+                                                    bottomLine: printSettings.showClassName ? p?.bottomLine : ''
+                                                }))}
+                                                type="teacher"
+                                                editable={false}
+                                            />
+                                        </div>
+                                    ))
+                            ) : (
+                                classrooms.map(room => (
+                                    <div key={room.id} className="print-page-break">
+                                        <h1 className="print-report-title">{formatPrintTitle(printSettings.titleTemplate, { ...room, grade: '' })}</h1>
                                         <ScheduleGrid
-                                            schedule={getFullGridForClass(c.id).map(p => ({
+                                            schedule={getFullGridForClassroom(room.id).map(p => ({
                                                 ...p,
-                                                topLine: printSettings.showCourseName ? p?.topLine : '',
-                                                bottomLine: printSettings.showTeacherName ? p?.bottomLine : ''
-                                            }))}
-                                            type="class"
-                                            editable={false}
-                                        />
-                                    </div>
-                                ))
-                        ) : printType === 'teacher' ? (
-                            teachers
-                                .filter(t => t.id !== 'none')
-                                .filter(t => {
-                                    if (!printFilter) return true;
-                                    if (printFilter.type === 'category') {
-                                        const cat = printFilter.value;
-                                        const homeroomTeacherIds = new Set(classes.map(c => c.teacherId).filter(id => id));
-                                        if (cat === 'homeroom') return homeroomTeacherIds.has(t.id);
-                                        if (cat === 'subject') return !homeroomTeacherIds.has(t.id) && !t.name.includes('主任') && !t.name.includes('校長');
-                                        if (cat === 'admin') return t.name.includes('主任') || t.name.includes('校長') || t.name.includes('組長');
-                                    }
-                                    return true;
-                                })
-                                .map(t => (
-                                    <div key={t.id} className="print-page-break">
-                                        <h1 className="print-report-title">{formatPrintTitle(printSettings.titleTemplate, t)}</h1>
-                                        <ScheduleGrid
-                                            schedule={getFullGridForTeacher(t.id).map(p => ({
-                                                ...p,
-                                                topLine: printSettings.showCourseName ? p?.topLine : '',
-                                                bottomLine: printSettings.showClassName ? p?.bottomLine : ''
+                                                topLine: printSettings.showClassName ? p?.topLine : '',
+                                                bottomLine: printSettings.showCourseName ? p?.bottomLine : ''
                                             }))}
                                             type="teacher"
                                             editable={false}
                                         />
                                     </div>
                                 ))
-                        ) : (
-                            classrooms.map(room => (
-                                <div key={room.id} className="print-page-break">
-                                    <h1 className="print-report-title">{formatPrintTitle(printSettings.titleTemplate, { ...room, grade: '' })}</h1>
-                                    <ScheduleGrid
-                                        schedule={getFullGridForClassroom(room.id).map(p => ({
-                                            ...p,
-                                            topLine: printSettings.showClassName ? p?.topLine : '',
-                                            bottomLine: printSettings.showCourseName ? p?.bottomLine : ''
-                                        }))}
-                                        type="teacher"
-                                        editable={false}
-                                    />
-                                </div>
-                            ))
-                        )}
-                    </div>
-                )
-            }
+                            )}
+                        </div>
+                    )
+                }
 
-            <PrintSettingsModal
-                show={showPrintModal}
-                type={printType}
-                initialSettings={printSettings}
-                onClose={() => setShowPrintModal(false)}
-                onConfirm={executePrint}
+                <PrintSettingsModal
+                    show={showPrintModal}
+                    type={printType}
+                    initialSettings={printSettings}
+                    onClose={() => setShowPrintModal(false)}
+                    onConfirm={executePrint}
+                />
+
+                {/* Snapshot Manager Modal */}
+                {
+                    showSnapshotManager && (
+                        <SnapshotManager
+                            currentRequirements={requirements}
+                            currentSchedules={bestSolution.length > 0 ? classes.map(cls => {
+                                const classGenes = bestSolution.filter(g => g.classId === cls.id);
+                                // Ensure each slot is a unique object reference and contains no undefined
+                                const periods = Array.from({ length: 35 }, () => ({ courseId: null, teacherId: null }));
+                                classGenes.forEach(g => {
+                                    if (g.periodIndex >= 0 && g.periodIndex < 35) {
+                                        periods[g.periodIndex] = {
+                                            courseId: g.courseId || null,
+                                            teacherId: g.teacherId || null
+                                        };
+                                    }
+                                });
+                                return { classId: cls.id, periods };
+                            }) : null}
+                            onRestore={(snapshot) => {
+                                // Restore requirements
+                                if (snapshot.requirements) {
+                                    setRequirements(snapshot.requirements);
+                                }
+                                // Restore schedules (set as best solution for preview/save)
+                                if (snapshot.schedules) {
+                                    const genes = [];
+                                    snapshot.schedules.forEach(sch => {
+                                        sch.periods.forEach((p, idx) => {
+                                            if (p.courseId) {
+                                                genes.push({
+                                                    classId: sch.classId,
+                                                    periodIndex: idx,
+                                                    courseId: p.courseId,
+                                                    teacherId: p.teacherId
+                                                });
+                                            }
+                                        });
+                                    });
+                                    setBestSolution(genes);
+                                    setProgress({ generation: 0, score: 1000000 }); // High score for restored snapshot
+                                    alert(`已載入快照「${snapshot.name}」，您可以預覽並點擊「儲存課表」正式套用。`);
+                                }
+                            }}
+                            onCompare={handleCompareSnapshot}
+                            onClose={() => setShowSnapshotManager(false)}
+                        />
+                    )
+                }
+            </div >
+
+            {/* ===== Excel 匯入預覽 Modal ===== */}
+            <ImportPreviewModal
+                isOpen={importPreview.isOpen}
+                matched={importPreview.matched}
+                unmatched={importPreview.unmatched}
+                onClose={() => setImportPreview(p => ({ ...p, isOpen: false }))}
+                onConfirm={handleConfirmImport}
             />
 
-            {/* Snapshot Manager Modal */}
-            {
-                showSnapshotManager && (
-                    <SnapshotManager
-                        currentRequirements={requirements}
-                        currentSchedules={bestSolution.length > 0 ? classes.map(cls => {
-                            const classGenes = bestSolution.filter(g => g.classId === cls.id);
-                            // Ensure each slot is a unique object reference and contains no undefined
-                            const periods = Array.from({ length: 35 }, () => ({ courseId: null, teacherId: null }));
-                            classGenes.forEach(g => {
-                                if (g.periodIndex >= 0 && g.periodIndex < 35) {
-                                    periods[g.periodIndex] = {
-                                        courseId: g.courseId || null,
-                                        teacherId: g.teacherId || null
-                                    };
-                                }
-                            });
-                            return { classId: cls.id, periods };
-                        }) : null}
-                        onRestore={(snapshot) => {
-                            // Restore requirements
-                            if (snapshot.requirements) {
-                                setRequirements(snapshot.requirements);
-                            }
-                            // Restore schedules (set as best solution for preview/save)
-                            if (snapshot.schedules) {
-                                const genes = [];
-                                snapshot.schedules.forEach(sch => {
-                                    sch.periods.forEach((p, idx) => {
-                                        if (p.courseId) {
-                                            genes.push({
-                                                classId: sch.classId,
-                                                periodIndex: idx,
-                                                courseId: p.courseId,
-                                                teacherId: p.teacherId
-                                            });
-                                        }
-                                    });
-                                });
-                                setBestSolution(genes);
-                                setProgress({ generation: 0, score: 1000000 }); // High score for restored snapshot
-                                alert(`已載入快照「${snapshot.name}」，您可以預覽並點擊「儲存課表」正式套用。`);
-                            }
-                        }}
-                        onCompare={handleCompareSnapshot}
-                        onClose={() => setShowSnapshotManager(false)}
-                    />
-                )
-            }
-        </div >
+            {/* ===== 智慧代課推薦抽屜 ===== */}
+            <SubstitutePanel
+                isOpen={showSubstitute}
+                onClose={() => setShowSubstitute(false)}
+                teachers={teachers}
+                allSchedules={bestSolution.length > 0 ? (() => {
+                    // 將 bestSolution genes 轉成 allSchedules 格式
+                    const classMap = {};
+                    bestSolution.forEach(g => {
+                        if (!classMap[g.classId]) classMap[g.classId] = { classId: g.classId, periods: new Array(35).fill(null) };
+                        classMap[g.classId].periods[g.periodIndex] = { courseId: g.courseId, teacherId: g.teacherId };
+                    });
+                    return Object.values(classMap);
+                })() : []}
+                courses={courses}
+            />
+        </>
     );
 }
 

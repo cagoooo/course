@@ -7,11 +7,11 @@ self.onmessage = (e) => {
     const { type, payload } = e.data;
 
     if (type === 'START') {
-        const { data, config } = payload;
-        console.log('Worker: Starting GA v2.0...', config);
+        const { data, config, smartSeedGenes } = payload;
+        console.log('Worker: Starting GA v2.0...', config, smartSeedGenes ? `[SmartSeed: ${smartSeedGenes.length} 基因]` : '[無智慧種子]');
 
         ga = new GeneticAlgorithm(config);
-        let population = ga.initPopulation(data);
+        let population = ga.initPopulation(data, smartSeedGenes || null);
         let generation = 0;
         let lastBestScore = -1;
         running = true;

@@ -21,8 +21,9 @@ export class GeneticAlgorithm {
     /**
      * Create initial population.
      * @param {Object} data Source data (classes, courses, requirements)
+     * @param {Array|null} smartSeedGenes - 上一學期最佳染色體，用于加速收斂
      */
-    initPopulation(data) {
+    initPopulation(data, smartSeedGenes = null) {
         this.data = data; // Store for directed mutation
         if (data.teachers) this.checker.setTeachers(data.teachers);
         if (data.courses) this.checker.setCourses(data.courses);
@@ -39,24 +40,55 @@ export class GeneticAlgorithm {
 
         const population = [];
         for (let i = 0; i < this.populationSize; i++) {
-            // 50% Smart Seeding + 50% Random (preserve diversity)
-            population.push(this.createSchedule(data, i < this.populationSize / 2));
+            if (i === 0 && smartSeedGenes?.length) {
+                // 索引 0：使用上學期最佳染色體作為起點
+                population.push(this.createSchedule(data, true, smartSeedGenes));
+                console.log('[SmartSeed] 已將上學期最佳染色體作為初始个體一小入新學期演算');
+            } else {
+                // 50% Smart Seeding + 50% Random (preserve diversity)
+                population.push(this.createSchedule(data, i < this.populationSize / 2));
+            }
         }
         return population;
     }
 
     /**
      * Create a schedule with optional smart seeding.
-     * @param {Object} data 
-     * @param {boolean} smart Whether to use heuristic placement
+     * @param {Object}     data 
+     * @param {boolean}    smart      Whether to use heuristic placement
+     * @param {Array|null} seedGenes  若提供，郣分時段使用 seed 中標記為 valid 的基因
      */
-    createSchedule(data, smart = false) {
+    createSchedule(data, smart = false, seedGenes = null) {
         const classSchedules = {};
         data.classes.forEach(c => {
             classSchedules[c.id] = new Array(TOTAL_PERIODS).fill(null);
         });
 
         const classGradeMap = Object.fromEntries(data.classes.map(c => [c.id, c.grade]));
+
+        // Seed Pass: 如果提供了上學期最佳染色體，預先使用它填充時段
+        if (seedGenes?.length) {
+            const validClassIds = new Set(data.classes.map(c => c.id));
+            const validCourseIds = new Set(data.requirements.map(r => r.courseId));
+            const validTeacherIds = new Set(data.teachers?.map(t => t.id) || []);
+
+            seedGenes.forEach(gene => {
+                const { classId, periodIndex, courseId, teacherId } = gene;
+                if (!validClassIds.has(classId)) return;
+                if (!validCourseIds.has(courseId)) return;
+                if (teacherId && !validTeacherIds.has(teacherId)) return;
+                if (periodIndex < 0 || periodIndex >= TOTAL_PERIODS) return;
+                if (classSchedules[classId]?.[periodIndex] === null) {
+                    classSchedules[classId][periodIndex] = {
+                        classId,
+                        periodIndex,
+                        courseId,
+                        teacherId: teacherId || null,
+                        locked: false, // seed 基因不強制鎖定，允許演算法繼續優化
+                    };
+                }
+            });
+        }
 
         // First Pass: Place Locked/Fixed Slots
         data.requirements.forEach(req => {
