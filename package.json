@@ -1,6 +1,6 @@
 {
   "name": "course",
-  "version": "2.11.0",
+  "version": "2.12.0",
   "description": "經過分析，此資料夾存放了一套 Windows 桌面版的學校排課系統 (STC) 及其相關資料庫。",
   "main": "index.js",
   "scripts": {
@@ -8,7 +8,10 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "vitest"
+    "test": "vitest --config vitest.config.js",
+    "test:run": "vitest run --config vitest.config.js",
+    "test:coverage": "vitest run --config vitest.config.js --coverage",
+    "test:rules": "vitest run --config vitest.rules.config.js"
   },
   "keywords": [],
   "author": "",
@@ -27,10 +30,17 @@
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-router-dom": "^7.13.0",
-    "vite": "^7.3.1"
+    "vite": "^7.3.1",
+    "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@vitest/coverage-v8": "^4.1.4",
     "dotenv": "^17.2.3",
+    "happy-dom": "^20.9.0",
     "vite-plugin-pwa": "^1.2.0",
     "vitest": "^4.0.18"
   }

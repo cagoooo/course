@@ -99,15 +99,18 @@ export async function parseRequirementsExcel(file, classes, courses, teachers) {
     });
 
     // 從第二列開始讀取資料
+    // 注意:ExcelJS 的 row.values 是「sparse 1-based」(index 0 為空洞)
+    // 由於 findCol 在 Array.from 產生的 headers 上 findIndex,其返回值已是 1-based,
+    // 因此讀資料時直接用 classCol(不需再 +1,早期程式碼有 off-by-one bug)
     sheet.eachRow((row, rowNumber) => {
         if (rowNumber === 1) return; // 跳過標題列
 
-        const vals = row.values; // 1-based
+        const vals = row.values; // 1-based sparse array
 
-        const rawClass = vals[classCol + 1];   // +1 因為 ExcelJS values 是 1-based
-        const rawCourse = vals[courseCol + 1];
-        const rawTeacher = teacherCol !== -1 ? vals[teacherCol + 1] : null;
-        const rawPeriods = periodsCol !== -1 ? vals[periodsCol + 1] : null;
+        const rawClass = vals[classCol];
+        const rawCourse = vals[courseCol];
+        const rawTeacher = teacherCol !== -1 ? vals[teacherCol] : null;
+        const rawPeriods = periodsCol !== -1 ? vals[periodsCol] : null;
 
         const className = normalize(rawClass);
         const courseName = normalize(rawCourse);

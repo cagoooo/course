@@ -1,0 +1,124 @@
+name: CI
+
+# 觸發時機:
+#   - push 至 main / develop(驗證主線與預備分支)
+#   - 所有 pull_request(PR 階段即攔截回歸)
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+# 避免同一 PR 多次 push 造成重複執行(取消上一次)
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # --------------------------------------------------------
+  # Job 1:Lint 與單元測試(快速,<1min)
+  # --------------------------------------------------------
+  test:
+    name: Lint & Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # 暫不強制 lint(現有 code 未完全通過),先以 warning 形式觀察
+      - name: Lint (warn-only)
+        run: npm run lint --if-present -- --max-warnings=9999 || true
+
+      - name: Run unit tests with coverage
+        run: npm run test:coverage
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 14
+
+  # --------------------------------------------------------
+  # Job 2:Firestore Rules 測試(獨立 job,需要 emulator)
+  # --------------------------------------------------------
+  rules:
+    name: Firestore Rules Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Set up Java (required by Firebase Emulator)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Run Firestore Rules tests via emulator
+        run: |
+          firebase emulators:exec \
+            --only firestore \
+            --project smes-test \
+            "npm run test:rules"
+
+  # --------------------------------------------------------
+  # Job 3:Production Build 驗證
+  # --------------------------------------------------------
+  build:
+    name: Production Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build production bundle
+        run: npm run build
+        env:
+          # 使用虛擬值讓 build 通過;真實環境變數在 deploy workflow 才需要
+          VITE_FIREBASE_API_KEY: ci-dummy
+          VITE_FIREBASE_AUTH_DOMAIN: ci-dummy.firebaseapp.com
+          VITE_FIREBASE_PROJECT_ID: ci-dummy
+          VITE_FIREBASE_STORAGE_BUCKET: ci-dummy.appspot.com
+          VITE_FIREBASE_MESSAGING_SENDER_ID: '0'
+          VITE_FIREBASE_APP_ID: '1:0:web:0'
+
+      - name: Check bundle size budget
+        run: |
+          # 粗略預算:主 index chunk 不應超過 1.5MB(minified),超過則警告
+          MAIN_SIZE=$(find dist/assets -name 'index-*.js' -exec du -b {} + | sort -rn | head -1 | awk '{print $1}')
+          echo "Main bundle size: $MAIN_SIZE bytes"
+          if [ "$MAIN_SIZE" -gt 1572864 ]; then
+            echo "::warning::Main bundle exceeds 1.5MB budget"
+          fi

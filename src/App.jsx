@@ -8,6 +8,7 @@ import UserManagement from './pages/UserManagement';
 import Login from './pages/Login';
 import { SemesterProvider } from './contexts/SemesterContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { ToastProvider } from './contexts/ToastContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import SemesterSelector from './components/SemesterSelector';
 import './index.css';
@@ -59,6 +60,7 @@ function Navbar() {
 function App() {
     return (
         <AuthProvider>
+            <ToastProvider>
             <SemesterProvider>
                 <Router basename="/course">
                     <div className="app-container">
@@ -95,6 +97,7 @@ function App() {
                     </div>
                 </Router>
             </SemesterProvider>
+            </ToastProvider>
         </AuthProvider>
     );
 }

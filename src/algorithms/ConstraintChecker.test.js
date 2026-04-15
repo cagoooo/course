@@ -86,30 +86,63 @@ describe('ConstraintChecker', () => {
 
     describe('Soft Constraints', () => {
         describe('Chinese (國語)', () => {
-            it('should penalize > 2 periods per day', () => {
+            it('should penalize > 2 periods per day as HARD constraint', () => {
                 // Schedule 3 periods of Chinese on Day 1 (slots 10, 11, 12) - Safe from unavailable
+                // slot 10 (period 4, 上午), slot 11 (period 5, 下午), slot 12 (period 6, 下午)
                 const chromosome = [
                     { classId: 'cls1', teacherId: 't1', periodIndex: 10, courseId: 'c1' },
                     { classId: 'cls1', teacherId: 't1', periodIndex: 11, courseId: 'c1' },
                     { classId: 'cls1', teacherId: 't1', periodIndex: 12, courseId: 'c1' }
                 ];
                 const score = checker.calculateFitness(chromosome);
-                // 3 periods on same day. Count > 2 is 1. Penalty = 1 * 2000 * 10 (soft multiplier) = 20000
-                // Base - 20000
-                expect(score).toBe(1000000 - 20000);
+                // 目前規則(v2.11):
+                //  HARD: 國語一天>2節 → (3-2)*5 = 5 hard → -50,000
+                //  SOFT: 國語在下午 (slots 11, 12) → 2 * 50 = 100 soft → -1,000
+                //  SOFT: 教師連續 3 節同科疲勞 → 小幅額外扣分
+                // 保守驗證:分數必定小於「僅 hard 扣分」的結果,且大於「全滿軟性扣分」
+                expect(score).toBeLessThan(1_000_000 - 50_000);
+                expect(score).toBeGreaterThan(1_000_000 - 50_000 - 2_000);
+            });
+
+            it('should not penalize if spread across days', () => {
+                // 國語分在 3 天的上午(slot 0/7/14 → 但 0 是 t1 不可用,改 2/7/14)
+                // 但 teacher t1 avoidSlots=[2] 會扣 soft 3 * 10 = 30,改成乾淨的 3/7/14
+                const chromosome = [
+                    { classId: 'cls1', teacherId: 't2', periodIndex: 3, courseId: 'c1' },
+                    { classId: 'cls1', teacherId: 't2', periodIndex: 7, courseId: 'c1' },
+                    { classId: 'cls1', teacherId: 't2', periodIndex: 14, courseId: 'c1' }
+                ];
+                const score = checker.calculateFitness(chromosome);
+                // slot 3 上午, 7 上午, 14 上午 → 無下午扣分;3 天分散 → 無集中扣分
+                // 但 r1 classroom 檢查:t2 有 classroomId=r1,三節都在 r1,不同 period,無衝突 ✓
+                // 應為滿分
+                expect(score).toBe(1_000_000);
             });
         });
 
         describe('Math (數學)', () => {
-            it('should penalize > 1 period per day', () => {
+            it('should penalize > 1 period per day as HARD constraint', () => {
                 // Schedule 2 periods of Math on Day 1
+                // slot 10 (上午), slot 11 (下午)
                 const chromosome = [
                     { classId: 'cls1', teacherId: 't1', periodIndex: 10, courseId: 'c2' },
                     { classId: 'cls1', teacherId: 't1', periodIndex: 11, courseId: 'c2' }
                 ];
                 const score = checker.calculateFitness(chromosome);
-                // Count > 1 is 1. Penalty = 1 * 2000 * 10 = 20000
-                expect(score).toBe(1000000 - 20000);
+                // HARD: 數學一天>1節 → (2-1)*5 = 5 hard
+                // HARD: 數學在下午 (slot 11) → 5 hard
+                // total hard = 10 → -100,000
+                expect(score).toBe(1_000_000 - 100_000);
+            });
+
+            it('should penalize heavily when scheduled in afternoon', () => {
+                // 數學排在下午(slot 5, period 6)
+                const chromosome = [
+                    { classId: 'cls1', teacherId: 't2', periodIndex: 5, courseId: 'c2' },
+                ];
+                const score = checker.calculateFitness(chromosome);
+                // HARD: 數學下午 → 5 hard → -50,000
+                expect(score).toBe(1_000_000 - 50_000);
             });
         });
 

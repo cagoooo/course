@@ -1,10 +1,15 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { firestoreService } from '../services/firestoreService';
 import { useSemester } from '../contexts/SemesterContext';
+import { useToast, useConfirm } from '../contexts/ToastContext';
+import { useKeyboardShortcuts, formatShortcut } from '../hooks/useKeyboardShortcuts';
+import { useScheduleETA } from '../hooks/useScheduleETA';
+import { useSchedulerEngine } from '../hooks/useSchedulerEngine';
+import { useExcelImport } from '../hooks/useExcelImport';
+import { useSnapshot } from '../hooks/useSnapshot';
 import ScheduleGrid from '../components/ScheduleGrid';
 import PublicSchedule from './PublicSchedule';
 import PrintSettingsModal from '../components/PrintSettingsModal';
-import SchedulerWorker from '../workers/scheduler.worker.js?worker';
 import DataManagementPanel from '../components/DataManagementPanel';
 import TeacherWorkloadPanel from '../components/TeacherWorkloadPanel';
 import ExportPanel from '../components/ExportPanel';
@@ -17,16 +22,17 @@ import ExcelPanel from '../components/ExcelPanel';
 import { DiffService } from '../services/DiffService'; // Import Diff Service
 import { ExcelExporter } from '../utils/excel/ExcelExporter';
 import ImportPreviewModal from '../components/ImportPreviewModal';
-import { parseRequirementsExcel, toRequirements } from '../utils/excel/ExcelImporter';
 import SubstitutePanel from '../components/SubstitutePanel';
 import './AutoSchedule_ProgressBar.css';
 
 
 function AutoSchedule() {
     const { currentSemesterId } = useSemester();
+    const toast = useToast();
+    const confirmDialog = useConfirm();
     const [activeTab, setActiveTab] = useState('settings'); // 'settings' | 'workload' | 'scheduler'
     const [status, setStatus] = useState('idle'); // idle, loading, running, stopped
-    const [progress, setProgress] = useState({ generation: 0, score: 0 });
+    const [progress, setProgress] = useState({ generation: 0, score: 0, stagnation: 0 });
     const [bestSolution, setBestSolution] = useState([]);
     const [draggingIndex, setDraggingIndex] = useState(null); // For smart suggestions
     const [showQRCode, setShowQRCode] = useState(false);
@@ -88,7 +94,6 @@ function AutoSchedule() {
 
     const [selectedTeacherId, setSelectedTeacherId] = useState(null);
 
-    const workerRef = useRef(null);
     const isInitialLoad = useRef(true);
     const saveTimeoutRef = useRef(null);
 
@@ -247,39 +252,14 @@ function AutoSchedule() {
 
 
     // Worker Control
+    // --- GA 引擎(透過 hook 控制)---
+    const scheduler = useSchedulerEngine({
+        onPopulationUpdate: setBestSolution,
+        onConverged: (msg) => toast.success(msg, { title: '演算完成', duration: 6000 }),
+        onWarning: (msg) => toast.warning(msg),
+    });
+
     const handleStart = () => {
-        if (requirements.length === 0) {
-            alert("無排課需求，無法開始。");
-            return;
-        }
-
-        if (!workerRef.current) {
-            workerRef.current = new SchedulerWorker();
-            workerRef.current.onmessage = (e) => {
-                const { type, payload } = e.data;
-                if (type === 'PROGRESS') {
-                    setProgress({
-                        generation: payload.generation,
-                        score: payload.bestScore,
-                        stagnation: payload.stagnation || 0,
-                        mutationRate: payload.mutationRate || 0
-                    });
-                    setBestSolution(payload.bestSolution);
-                } else if (type === 'CONVERGED') {
-                    setProgress({
-                        generation: payload.generation,
-                        score: payload.bestScore,
-                        stagnation: 0,
-                        mutationRate: 0
-                    });
-                    setBestSolution(payload.bestSolution);
-                    setStatus('stopped');
-                    alert(payload.message);
-                }
-            };
-        }
-
-        setStatus('running');
         // Sanitize data before sending to worker to prevent "name is object" errors
         const safeData = {
             classes,
@@ -295,61 +275,107 @@ function AutoSchedule() {
             }))
         };
 
-        workerRef.current.postMessage({
-            type: 'START',
-            payload: {
-                data: safeData,
-                config: { populationSize: 100, mutationRate: 0.05 },
-                smartSeedGenes: smartSeedGenes || null,
-            }
+        scheduler.start({
+            data: safeData,
+            config: { populationSize: 100, mutationRate: 0.05 },
+            smartSeedGenes: smartSeedGenes || null,
         });
     };
 
-    // --- 多學期學習 Handlers ---
-    const handleSaveSmartSeed = async () => {
-        if (!bestSolution?.length) {
-            alert('請先完成排課再儲存智慧種子。');
-            return;
-        }
-        try {
-            await firestoreService.saveBestChromosome(bestSolution, currentSemesterId);
-            alert(`✅ 已將當前學期 (${currentSemesterId}) 的最佳課表儲存為智慧種子！\n下學期啟動排課時可載入使用。`);
-        } catch (err) {
-            alert(`儲存失敗: ${err.message}`);
-        }
-    };
+    // --- 多學期學習(Smart Seed)Handlers ---
+    const snapshot = useSnapshot();
+
+    // 保留舊的 smartSeedGenes/smartSeedInfo state 介面,以兼容下方 UI 讀取
+    // 但 side effects(toast/firestore)由 hook 處理
+    const handleSaveSmartSeed = () => snapshot.saveSmartSeed(bestSolution, currentSemesterId);
 
     const handleLoadSmartSeed = async (semI) => {
-        if (!semI) return;
-        try {
-            const genes = await firestoreService.loadBestChromosome(semI);
-            if (genes) {
-                setSmartSeedGenes(genes);
-                setSmartSeedInfo({ semesterId: semI, geneCount: genes.length });
-                alert(`✅ 已載入學期 (${semI}) 的智慧種子 (${genes.length} 個基因)！下次開始排課時將自動使用。`);
-            } else {
-                alert(`學期 (${semI}) 尚未儲存智慧種子，請先在對應學期排課完成後儲存。`);
-            }
-        } catch (err) {
-            alert(`載入失敗: ${err.message}`);
+        const genes = await snapshot.loadSmartSeed(semI);
+        if (genes) {
+            setSmartSeedGenes(genes);
+            setSmartSeedInfo({ semesterId: semI, geneCount: genes.length });
         }
     };
 
     const handleStop = () => {
-        if (workerRef.current) {
-            workerRef.current.terminate();
-            workerRef.current = null;
-        }
-        setStatus('stopped');
+        scheduler.stop();
+        toast.info('已停止演算');
     };
 
-    const handleSave = async () => {
-        if (!bestSolution || bestSolution.length === 0) return;
+    // --- ETA 進度預估 ---
+    const eta = useScheduleETA({
+        status,
+        generation: progress.generation,
+        score: progress.score,
+        stagnation: progress.stagnation || 0,
+    });
 
-        const confirmSave = confirm("確定要將此課表寫入資料庫嗎？這將會覆蓋現有的課表資料。");
-        if (!confirmSave) return;
+    // --- 快捷鍵:Ctrl+S 儲存 / Ctrl+Z 快照 / Ctrl+E 匯出 ---
+    useKeyboardShortcuts([
+        {
+            keys: 'mod+s',
+            description: '儲存目前課表',
+            handler: () => {
+                if (status === 'saving') return;
+                if (bestSolution.length === 0) {
+                    toast.warning('尚無可儲存的課表');
+                    return;
+                }
+                handleSave();
+            },
+        },
+        {
+            keys: 'mod+z',
+            description: '打開快照管理(版本還原)',
+            handler: () => {
+                setShowSnapshotManager(true);
+                toast.info('已開啟快照管理', { duration: 1500 });
+            },
+        },
+        {
+            keys: 'mod+e',
+            description: '開啟匯出面板',
+            handler: () => {
+                if (bestSolution.length === 0) {
+                    toast.warning('請先完成排課才能匯出');
+                    return;
+                }
+                setActiveTab('scheduler');
+                toast.info('可使用上方匯出按鈕匯出課表', { duration: 2500 });
+            },
+        },
+        {
+            keys: 'mod+enter',
+            description: '開始演算',
+            handler: () => {
+                if (status === 'running') return;
+                handleStart();
+            },
+        },
+        {
+            keys: 'escape',
+            description: '停止演算',
+            allowInInput: false,
+            handler: () => {
+                if (status === 'running') handleStop();
+            },
+        },
+    ]);
+
+    const handleSave = async () => {
+        if (!bestSolution || bestSolution.length === 0) {
+            toast.warning('目前沒有可儲存的課表。');
+            return;
+        }
+
+        const ok = await confirmDialog(
+            '確定要將此課表寫入資料庫嗎?這將會覆蓋現有的課表資料。',
+            { variant: 'danger', confirmText: '覆蓋並儲存', title: '儲存到資料庫' }
+        );
+        if (!ok) return;
 
         setStatus('saving');
+        const loadingId = toast.loading('正在寫入課表…');
 
         // Convert Chromosome to Schedule Objects
         const schedulesToSave = classes.map(cls => {
@@ -369,11 +395,11 @@ function AutoSchedule() {
 
         try {
             await firestoreService.saveScheduleBatch(schedulesToSave, currentSemesterId);
-            alert("課表儲存成功！");
+            toast.update(loadingId, 'success', '課表儲存成功!', { title: '已寫入資料庫' });
             setStatus('idle');
         } catch (err) {
             console.error(err);
-            alert("儲存失敗：" + err.message);
+            toast.update(loadingId, 'error', `儲存失敗: ${err.message}`);
             setStatus('stopped');
         }
     };
@@ -386,7 +412,7 @@ function AutoSchedule() {
             setTeachers([...teachers, saved]);
         } catch (e) {
             console.error(e);
-            alert("新增失敗: " + e.message);
+            toast.error('新增失敗: ' + e.message);
         }
     };
 
@@ -400,18 +426,22 @@ function AutoSchedule() {
             setTeachers(teachers.map(t => t.id === id ? { ...t, ...changes } : t));
         } catch (e) {
             console.error(e);
-            alert("更新失敗: " + e.message);
+            toast.error('更新失敗: ' + e.message);
         }
     };
 
     const handleDeleteTeacher = async (id) => {
-        if (!confirm("確定要刪除這位老師嗎？相關的排課設定可能會失效。")) return;
+        const ok = await confirmDialog('確定要刪除這位老師嗎?相關的排課設定可能會失效。', {
+            variant: 'danger', confirmText: '刪除'
+        });
+        if (!ok) return;
         try {
             await firestoreService.deleteTeacher(id, currentSemesterId);
             setTeachers(teachers.filter(t => t.id !== id));
+            toast.success('教師已刪除');
         } catch (e) {
             console.error(e);
-            alert("刪除失敗: " + e.message);
+            toast.error('刪除失敗: ' + e.message);
         }
     };
 
@@ -422,7 +452,7 @@ function AutoSchedule() {
             setClassrooms([...classrooms, saved]);
         } catch (e) {
             console.error(e);
-            alert("新增失敗: " + e.message);
+            toast.error('新增失敗: ' + e.message);
         }
     };
 
@@ -432,20 +462,24 @@ function AutoSchedule() {
             setClassrooms(classrooms.map(c => c.id === id ? { ...c, name } : c));
         } catch (e) {
             console.error(e);
-            alert("更新失敗: " + e.message);
+            toast.error('更新失敗: ' + e.message);
         }
     };
 
     const handleDeleteClassroom = async (id) => {
-        if (!confirm("確定要刪除這個教室嗎？已綁定的教師將失去教室關聯。")) return;
+        const ok = await confirmDialog('確定要刪除這個教室嗎?已綁定的教師將失去教室關聯。', {
+            variant: 'danger', confirmText: '刪除'
+        });
+        if (!ok) return;
         try {
             await firestoreService.deleteClassroom(id, currentSemesterId);
             setClassrooms(classrooms.filter(c => c.id !== id));
             // Also need to clear classroomId for teachers who used it
             setTeachers(teachers.map(t => t.classroomId === id ? { ...t, classroomId: null } : t));
+            toast.success('教室已刪除');
         } catch (e) {
             console.error(e);
-            alert("刪除失敗: " + e.message);
+            toast.error('刪除失敗: ' + e.message);
         }
     };
 
@@ -1033,47 +1067,28 @@ function AutoSchedule() {
         setShowPrintModal(true);
     };
 
-    // --- Excel 匯入 Handlers ---
-    const handleImportFile = async (file) => {
-        try {
-            const { matched, unmatched } = await parseRequirementsExcel(file, classes, courses, teachers);
-            setImportPreview({ isOpen: true, matched, unmatched });
-        } catch (err) {
-            alert(`匯入失敗: ${err.message}`);
-        }
-    };
-
-    const handleConfirmImport = async (matched) => {
-        try {
-            const reqs = toRequirements(matched);
-            // 將新匯入的 requirements 合併到現有的 requirements 中
-            const existingReqMap = new Map(
-                requirements.map(r => [`${r.classId}::${r.courseId}::${r.teacherId || ''}`, r])
-            );
-            reqs.forEach(r => {
-                const key = `${r.classId}::${r.courseId}::${r.teacherId || ''}`;
-                existingReqMap.set(key, r);
-            });
-            const mergedReqs = Array.from(existingReqMap.values());
-            await firestoreService.saveRequirements(mergedReqs, currentSemesterId);
-            setRequirements(mergedReqs);
-            setImportPreview({ isOpen: false, matched: [], unmatched: [] });
-            alert(`✅ 成功匯入 ${matched.length} 筆配課資料！`);
-        } catch (err) {
-            alert(`儲存失敗: ${err.message}`);
-        }
-    };
+    // --- Excel 匯入(透過 useExcelImport hook) ---
+    const { handleImportFile, handleConfirmImport } = useExcelImport({
+        classes, courses, teachers,
+        requirements, setRequirements,
+        semesterId: currentSemesterId,
+        onParsed: (matched, unmatched) => setImportPreview({ isOpen: true, matched, unmatched }),
+        onImported: () => setImportPreview({ isOpen: false, matched: [], unmatched: [] }),
+    });
 
     const handleCopyShareLink = () => {
-        if (!viewClassId) return;
+        if (!viewClassId) {
+            toast.warning('請先選擇班級');
+            return;
+        }
         const baseUrl = window.location.origin;
         const shareUrl = `${baseUrl}/public/class/${viewClassId}`;
 
         navigator.clipboard.writeText(shareUrl).then(() => {
-            alert("已複製公開課表連結到剪貼簿！\n您可以將此連結傳送給老師。");
+            toast.success('已複製公開課表連結到剪貼簿,可傳送給老師。');
         }).catch(err => {
             console.error('Failed to copy: ', err);
-            alert(`連結為: ${shareUrl}\n(自動複製失敗，請手動複製)`);
+            toast.info(`連結為: ${shareUrl}`, { title: '自動複製失敗,請手動複製', duration: 8000 });
         });
     };
 
@@ -1421,6 +1436,24 @@ function AutoSchedule() {
                                             <small className="raw-score-hint">
                                                 演算法原始分數: {Math.floor(progress.score)}
                                             </small>
+                                            {status === 'running' && (
+                                                <div className="eta-row" role="status" aria-live="polite">
+                                                    <span className="eta-chip eta-chip--elapsed">
+                                                        ⏱ 已花費 <b>{eta.elapsedLabel}</b>
+                                                    </span>
+                                                    <span className="eta-chip eta-chip--speed">
+                                                        ⚡ {eta.genPerSec > 0 ? eta.genPerSec.toFixed(1) : '—'} 代/秒
+                                                    </span>
+                                                    <span className="eta-chip eta-chip--eta">
+                                                        🎯 預估剩餘 <b>{eta.etaLabel}</b>
+                                                    </span>
+                                                    {progress.stagnation > 0 && (
+                                                        <span className="eta-chip eta-chip--stag">
+                                                            💤 停滯 {progress.stagnation} 代
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 ) : (
@@ -1449,19 +1482,30 @@ function AutoSchedule() {
                                         >
                                             🔁 代課推薦
                                         </button>
-                                        <button className="btn btn-primary" onClick={handleStart} disabled={status === 'loading'}>
+                                        <button
+                                            className="btn btn-primary"
+                                            onClick={handleStart}
+                                            disabled={status === 'loading'}
+                                            title={`開始演算 (${formatShortcut('mod+enter')})`}
+                                        >
                                             ▶ 開始演算
                                         </button>
                                         <button
                                             className="btn btn-outline"
                                             onClick={() => setShowSnapshotManager(true)}
                                             style={{ marginLeft: '8px', borderColor: '#3949ab', color: '#3949ab' }}
+                                            title={`快照管理 (${formatShortcut('mod+z')})`}
                                         >
                                             📸 快照管理
                                         </button>
                                         {bestSolution.length > 0 && (
                                             <>
-                                                <button className="btn btn-primary" onClick={handleSave} style={{ background: '#10b981' }}>
+                                                <button
+                                                    className="btn btn-primary"
+                                                    onClick={handleSave}
+                                                    style={{ background: '#10b981' }}
+                                                    title={`儲存課表 (${formatShortcut('mod+s')})`}
+                                                >
                                                     💾 儲存課表
                                                 </button>
                                                 <button
