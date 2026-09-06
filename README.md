@@ -5,6 +5,8 @@
 ![Tests](https://img.shields.io/badge/Tests-127%20passing-success?style=for-the-badge&logo=vitest)
 ![CI](https://img.shields.io/badge/CI-lint%20%7C%20test%20%7C%20rules%20%7C%20build-success?style=for-the-badge&logo=github-actions)
 
+🌐 **線上使用：[自動排課系統](https://cagoooo.github.io/course/)**
+
 本系統是針對「石門國民小學」開發的智慧化自動排課與管理平台，旨在取代傳統的桌機版 STC 系統，提供雲端同步、AI 衝突解決與現代化的使用者體驗。
 
 > 📋 完整進度表與未來優化藍圖請見 [PROGRESS.md](./PROGRESS.md)
@@ -131,7 +133,7 @@
 - Repository：`cagoooo/course`
 - 可見性：公開
 - 主要技術：JavaScript、React、Vite、Firebase
-- 線上入口：未在 GitHub repository metadata 設定
+- 線上入口：<https://cagoooo.github.io/course/>
 
 ### 可以怎麼應用
 
