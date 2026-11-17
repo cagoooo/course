@@ -14,6 +14,13 @@
 
 ---
 
+## [2.12.2] - 2026-11-18 · App 內建瀏覽器防護
+
+### ✨ Added
+- `index.html` 加入 App 內建瀏覽器防護：LINE 自動改用外部瀏覽器、Android 臉書／IG 自動叫出 Chrome、iPhone 顯示引導（避免 Google 登入 403 disallowed_useragent）
+
+---
+
 ## [2.12.1] - 2026-11-17 · Site Footer
 
 ### ✨ Added

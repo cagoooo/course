@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import './SiteFooter.css';
 
-const APP_VERSION = 'v2.12.1';
+const APP_VERSION = 'v2.12.2';
 
 const points = [
     { icon: '🤖', title: 'AI 自動排課', desc: '用基因演算法排出全校課表，衝突自動檢查' },
