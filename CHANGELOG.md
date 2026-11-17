@@ -5,6 +5,15 @@
 
 ---
 
+## [2.12.1] - 2026-11-17 · Site Footer
+
+### ✨ Added
+- **網站頁尾** (`src/components/SiteFooter.{jsx,css}`)
+  - 系統簡介、三個功能重點、快速連結(首頁/教師課表/班級課表)、版本號
+  - 署名「Made with ❤️ by 阿凱老師」連到阿凱老師教育科技創新專區
+
+---
+
 ## [2.12.0] - 2026-04-16 · DX & Testing Foundation
 
 ### ✨ Added

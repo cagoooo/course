@@ -11,6 +11,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ToastProvider } from './contexts/ToastContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import SemesterSelector from './components/SemesterSelector';
+import SiteFooter from './components/SiteFooter';
 import './index.css';
 
 function Navbar() {
@@ -94,6 +95,8 @@ function App() {
                                 <Route path="/public/:type/:id" element={<PublicSchedule />} />
                             </Routes>
                         </main>
+
+                        <SiteFooter />
                     </div>
                 </Router>
             </SemesterProvider>

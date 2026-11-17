@@ -1,0 +1,220 @@
+/* 網站頁尾（2026-11-17 新增）：沿用 index.css 的玻璃卡片與靛紫配色 */
+.site-footer {
+    position: relative;
+    margin-top: 3rem;
+    background: var(--glass-bg);
+    backdrop-filter: blur(25px) saturate(180%);
+    -webkit-backdrop-filter: blur(25px) saturate(180%);
+    border: 1px solid var(--glass-border);
+    border-radius: 24px;
+    box-shadow: var(--glass-shadow);
+    overflow: hidden;
+}
+
+.site-footer::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--primary-color), var(--accent-color));
+}
+
+.site-footer__inner {
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) 2.4fr auto;
+    gap: 1.5rem;
+    align-items: start;
+    padding: 1.75rem 1.75rem 1.25rem;
+}
+
+.site-footer__brand {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+}
+
+.site-footer__logo {
+    flex: 0 0 48px;
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+}
+
+.site-footer__brand strong {
+    display: block;
+    font-size: 1.05rem;
+    color: var(--text-main);
+}
+
+.site-footer__brand span {
+    display: block;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    color: var(--text-content);
+}
+
+.site-footer__points {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.85rem;
+}
+
+.site-footer__points li {
+    display: flex;
+    gap: 0.6rem;
+    align-items: flex-start;
+    padding: 0.85rem;
+    background: rgba(255, 255, 255, 0.55);
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+}
+
+.site-footer__icon {
+    font-size: 1.25rem;
+    line-height: 1.4;
+}
+
+.site-footer__points strong {
+    display: block;
+    font-size: 0.95rem;
+    color: var(--text-main);
+}
+
+.site-footer__points small {
+    display: block;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: var(--text-content);
+}
+
+.site-footer__links {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.site-footer__link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-height: 40px;
+    padding: 0.4rem 0.9rem;
+    border-radius: 999px;
+    background: rgba(99, 102, 241, 0.08);
+    border: 1px solid rgba(99, 102, 241, 0.18);
+    color: var(--primary-hover);
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: background 0.2s, color 0.2s;
+}
+
+.site-footer__link:hover {
+    background: var(--primary-color);
+    color: #fff;
+}
+
+.site-footer__bottom {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin: 0 1.75rem;
+    padding: 1rem 0 1.25rem;
+    border-top: 1px solid rgba(99, 102, 241, 0.15);
+}
+
+.site-credit {
+    margin: 0;
+    font-size: 0.95rem;
+    color: var(--text-content);
+}
+
+.site-credit__heart {
+    display: inline-block;
+    margin: 0 2px;
+    filter: saturate(1.1);
+}
+
+.site-credit__author {
+    color: var(--primary-hover);
+    font-weight: 700;
+    text-decoration: none;
+    border-bottom: 1px dotted currentColor;
+    padding-bottom: 1px;
+    transition: color 0.2s;
+}
+
+.site-credit__author:hover {
+    color: var(--accent-color);
+}
+
+.site-footer__version {
+    margin: 0;
+    padding: 0.2rem 0.75rem;
+    font-size: 0.85rem;
+    color: var(--text-content);
+    background: rgba(255, 255, 255, 0.7);
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    border-radius: 999px;
+}
+
+@media (max-width: 1024px) {
+    .site-footer__inner {
+        grid-template-columns: 1fr;
+    }
+
+    .site-footer__links {
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+}
+
+@media (max-width: 640px) {
+    .site-footer {
+        margin-top: 2rem;
+        border-radius: 20px;
+    }
+
+    .site-footer__inner {
+        padding: 1.5rem 1rem 1rem;
+    }
+
+    .site-footer__points {
+        grid-template-columns: 1fr;
+    }
+
+    .site-footer__links {
+        justify-content: center;
+    }
+
+    .site-footer__bottom {
+        margin: 0 1rem;
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .site-footer__school {
+        display: block;
+    }
+
+    .site-footer__dot {
+        display: none;
+    }
+}
+
+@media print {
+    .site-footer {
+        display: none;
+    }
+}
