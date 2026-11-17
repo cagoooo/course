@@ -5,6 +5,15 @@
 
 ---
 
+## [Unreleased]
+
+### 🐛 Fixed
+- **停用中的舊 Service Worker** (`public/sw.js`)：修正離線快取只清除自己的舊快取，不再誤刪同網域其他工具的快取
+  - 只刪本站舊快取 `smes-cache-v1`、`smes-runtime-cache` 與名稱含 `/course/` 範圍網址的 workbox 快取，仍保留自我登出並重新整理
+  - 註：正式站 `/course/sw.js` 由 vite-plugin-pwa 產生並覆蓋此檔，此檔目前不會上線
+
+---
+
 ## [2.12.1] - 2026-11-17 · Site Footer
 
 ### ✨ Added
